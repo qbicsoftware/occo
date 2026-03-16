@@ -130,8 +130,8 @@ Incoming documentation task
 │
 └─ Everything else (architecture, onboarding, migration,
    feature docs, multi-file synthesis)
-     └─→ docs-planner → (docs-writer-fast or docs-writer-pro)
-          └─→ docs-reviewer (for important docs)
+      └─→ docs-planner → docs-writer-fast
+           └─→ docs-reviewer (for important docs)
 ```
 
 **Permission boundaries:**
@@ -142,7 +142,6 @@ Incoming documentation task
     "*": "deny",
     "docs-planner": "allow",
     "docs-writer-fast": "allow",
-    "docs-writer-pro": "allow",
     "docs-reviewer": "allow",
     "agent-architect": "allow"
   },
@@ -189,7 +188,7 @@ The plan includes: objective, scope, assumptions, constraints, likely affected f
 - **Model:** `claude-sonnet-4-6`
 - **Mode:** Subagent
 
-`docs-planner` researches the codebase, understands its structure and behavior, and produces a `HANDOVER: DOCS PLAN` block that specifies the audience, goal, files to create or update, document structure, examples to include, and which writer agent to use next.
+`docs-planner` researches the codebase, understands its structure and behavior, and produces a `HANDOVER: DOCS PLAN` block that specifies the audience, goal, exact files to update, what to change in each file, examples to include, and how to verify accuracy.
 
 **When triggered vs. `docs-writer-fast` directly:**
 - Triggered when the task involves reading files to understand behavior, workflows, architecture, onboarding, migrations, or feature usage
@@ -269,36 +268,12 @@ Before editing, it restates: the objective, files it expects to modify, and its 
 
 #### `docs-writer-fast`
 
-> **Cheap documentation writer**
+> **Documentation writer for explicit, plan-backed edits**
 
 - **Model:** `claude-haiku-4-5`
 - **Mode:** Subagent
 
-`docs-writer-fast` handles narrow, explicit documentation updates: short sections, small diffs, concrete examples. It is cost-optimized for straightforward work that doesn't require architectural synthesis.
-
-**When to use vs. `docs-writer-pro`:**
-- Use `docs-writer-fast` for: typo fixes, formatting cleanup, small section additions, minor rewrites with clear scope
-- Use `docs-writer-pro` for: comprehensive rewrites, architecture documentation, multi-file documentation overhauls, anything requiring high-quality prose and strong structure
-
-**Permission boundaries:**
-
-```json
-"permission": {
-  "write": "allow",
-  "edit": "allow"
-}
-```
-
----
-
-#### `docs-writer-pro`
-
-> **High-quality documentation writer**
-
-- **Model:** `claude-sonnet-4-6`
-- **Mode:** Subagent
-
-`docs-writer-pro` produces high-quality, well-structured documentation following a `HANDOVER: DOCS PLAN`. It is used when the output demands clarity, depth, and careful organization — such as architecture guides, comprehensive README rewrites, or onboarding documentation.
+`docs-writer-fast` executes narrowly scoped documentation updates (typos, small rewrites, formatting, concrete examples) and also carries out larger edits when guided by a `HANDOVER: DOCS PLAN`. It keeps diffs tight and follows the plan strictly; if the plan is missing, contradictory, or the scope expands, it escalates to `@docs-planner`.
 
 **Permission boundaries:**
 
@@ -432,7 +407,6 @@ This means `coding-boss` **can only delegate to the four agents listed in its al
 | `docs` | deny | deny |
 | `docs-planner` | deny | deny |
 | `docs-writer-fast` | allow | allow |
-| `docs-writer-pro` | allow | allow |
 | `docs-reviewer` | deny | deny |
 | `agent-architect` | deny | deny |
 
@@ -526,18 +500,17 @@ docs  [claude-haiku-4-5]
         │  Produces: HANDOVER: DOCS PLAN
         │  No files touched
         │
-        ├─ Simple/narrow scope → docs-writer-fast  [claude-haiku-4-5]
+        ▼
+      docs-writer-fast  [claude-haiku-4-5]
         │
-        └─ Complex/comprehensive → docs-writer-pro  [claude-sonnet-4-6]
-                                        │
-                                        ▼
-                                   docs-reviewer  [claude-sonnet-4-6]
-                                       Produces: DOCS REVIEW RESULT
+        ▼
+      docs-reviewer  [claude-sonnet-4-6]   (for important docs)
+        Produces: DOCS REVIEW RESULT
 ```
 
 ### Concrete Routing Examples
 
-The examples below are concrete, paste-ready delegation flows as encoded in `opencode.openai.json`. These examples correspond to `opencode.openai.json`; other diagrams/tables in this README may reflect `opencode.mixed.json`.
+The examples below are concrete, paste-ready delegation flows as encoded in `opencode.openai.json`. If you use `opencode.mixed.json` (or a local `opencode.json`), agent names/models may differ; treat these as routing-shape examples, not a guarantee of exact model IDs.
 
 **Documentation tasks:**
 
@@ -650,31 +623,33 @@ Suggested review focus:
 === END HANDOVER ===
 ```
 
-**`HANDOVER: DOCS PLAN`** — produced by `docs-planner`, consumed by `docs-writer-fast` or `docs-writer-pro`:
+**`HANDOVER: DOCS PLAN`** — produced by `docs-planner`, consumed by `docs-writer-fast`:
 
 ```
 === HANDOVER: DOCS PLAN ===
 Audience:
-  <who will read this documentation>
 
 Goal:
-  <what the documentation must accomplish>
 
 Files:
-  <files to create or update>
 
-Structure:
-1. <section heading>
-2. <section heading>
+Operations:
+- create section
+- update section
+- add example
 
-Examples:
-  <what examples to include>
+Per-file plan:
+File:
+Changes:
 
-Warnings:
-  <common errors to avoid>
+Example blocks:
+
+Constraints:
+
+Acceptance criteria:
 
 Next agent:
-@docs-writer-pro
+@docs-writer-fast
 === END HANDOVER ===
 ```
 
