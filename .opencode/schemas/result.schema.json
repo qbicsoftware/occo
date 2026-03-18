@@ -20,7 +20,7 @@
     "result_type": {
       "type": "string",
       "enum": [
-        "review_summary",
+        "implementation_summary",
         "review_result",
         "docs_result",
         "blocked"

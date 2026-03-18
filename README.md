@@ -227,7 +227,7 @@ The plan includes: objective, scope, assumptions, constraints, likely affected f
 
 **Self-escalation:** If scope unexpectedly expands during implementation, `implementer-small` stops and escalates to `@implementer` rather than proceeding beyond its mandate.
 
-**Output:** Review summary content (commonly formatted as a `HANDOVER: REVIEW SUMMARY` block).
+**Output:** Implementation summary result JSON (`result_type: "implementation_summary"`).
 
 **Permission boundaries:**
 
@@ -252,7 +252,7 @@ The plan includes: objective, scope, assumptions, constraints, likely affected f
 
 Before editing, it restates: the objective, files it expects to modify, and its execution plan. If the plan is invalid or contradictory, it escalates back to `@planner` rather than improvising.
 
-**Output:** Review summary content (commonly formatted as a `HANDOVER: REVIEW SUMMARY` block).
+**Output:** Implementation summary result JSON (`result_type: "implementation_summary"`).
 
 **Permission boundaries:**
 
@@ -299,7 +299,7 @@ Before editing, it restates: the objective, files it expects to modify, and its 
 - **Model:** `claude-sonnet-4-6`
 - **Mode:** Subagent
 
-`code-reviewer` receives a review summary from an implementer and performs a structured review against four axes: correctness, security, maintainability, and test adequacy.
+`code-reviewer` receives an implementation summary from an implementer and performs a structured review against four axes: correctness, security, maintainability, and test adequacy.
 
 **Output:** A single JSON object persisted as a result artifact, matching `.opencode/schemas/result.schema.json` (use `result_type: "review_result"` and `status: "approve" | "needs_changes"`).
 
@@ -436,7 +436,7 @@ coding-boss  [claude-sonnet-4-6]
   │     ▼
   │   implementer  [gpt-5.3-codex]
   │     │  Follows plan strictly
-  │     │  Returns: result JSON artifact (`review_summary`)
+  │     │  Returns: result JSON artifact (`implementation_summary`)
   │     │
   │     ▼
   │   code-reviewer  [claude-sonnet-4-6]
@@ -449,7 +449,7 @@ coding-boss  [claude-sonnet-4-6]
   │     │
   │     ▼
   │   implementer-small  [gpt-5.1-codex-mini]
-  │       Returns: result JSON artifact (`review_summary`)
+  │       Returns: result JSON artifact (`implementation_summary`)
   │       (self-escalates to implementer if scope expands)
   │
   │     ▼
@@ -460,7 +460,7 @@ coding-boss  [claude-sonnet-4-6]
         │
         ▼
       implementer  [gpt-5.3-codex]
-        │  Returns: result JSON artifact (`review_summary`)
+        │  Returns: result JSON artifact (`implementation_summary`)
         │
         ▼
       code-reviewer  [claude-sonnet-4-6]
