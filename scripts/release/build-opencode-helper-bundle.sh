@@ -135,7 +135,13 @@ $BUNDLE_ROOT/release-manifest.json
 EOF
 
 TAR_PATH="$OUTPUT_DIR/$TARBALL_NAME"
-tar --format=ustar --uid 0 --gid 0 --uname root --gname root -cf "$TMP_DIR/bundle.tar" -C "$TMP_DIR/stage" -T "$LIST_FILE"
+if tar --help 2>/dev/null | grep -q -- '--uid'; then
+  tar --format=ustar --uid 0 --gid 0 --uname root --gname root -cf "$TMP_DIR/bundle.tar" -C "$TMP_DIR/stage" -T "$LIST_FILE"
+elif tar --help 2>/dev/null | grep -q -- '--owner'; then
+  tar --format=ustar --owner 0 --group 0 --numeric-owner -cf "$TMP_DIR/bundle.tar" -C "$TMP_DIR/stage" -T "$LIST_FILE"
+else
+  tar --format=ustar -cf "$TMP_DIR/bundle.tar" -C "$TMP_DIR/stage" -T "$LIST_FILE"
+fi
 gzip -n -c "$TMP_DIR/bundle.tar" > "$TAR_PATH"
 
 TAR_SHA=$(sha256_file "$TAR_PATH")
