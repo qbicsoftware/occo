@@ -497,7 +497,9 @@ cmd_validate() {
 }
 
 helper_installed_release_root() {
-  release_root=$(CDPATH= cd "$SCRIPT_DIR/.." 2>/dev/null && pwd) || return 1
+  # In an installed bundle, this script is invoked via INSTALL_HOME/current/scripts/opencode-helper.
+  # `current` is a symlink, so use `pwd -P` to resolve to INSTALL_HOME/releases/<tag>.
+  release_root=$(CDPATH= cd "$SCRIPT_DIR/.." 2>/dev/null && pwd -P) || return 1
   release_parent=$(dirname "$release_root")
   if [ "$(basename "$release_parent")" != "releases" ]; then
     return 1
@@ -536,17 +538,30 @@ activate_release_current_symlink() {
       return "$EXIT_ERR"
     }
   else
-    if [ -e "$current_path" ] || [ -L "$current_path" ]; then
-      if [ -d "$current_path" ] && [ ! -L "$current_path" ]; then
+    if [ -L "$current_path" ]; then
+      # Avoid tools that may treat a symlink-to-dir as a directory.
+      unlink "$current_path" 2>/dev/null || {
+        err "failed to clear existing current symlink"
+        rm -f "$current_tmp"
+        return "$EXIT_ERR"
+      }
+    elif [ -e "$current_path" ]; then
+      if [ -d "$current_path" ]; then
         err "refusing to replace non-symlink current directory: $current_path"
         rm -f "$current_tmp"
         return "$EXIT_ERR"
       fi
       rm -f "$current_path" || {
-        err "failed to clear existing current symlink"
+        err "failed to clear existing current path"
         rm -f "$current_tmp"
         return "$EXIT_ERR"
       }
+    fi
+
+    if [ -e "$current_path" ] || [ -L "$current_path" ]; then
+      err "failed to clear existing current path"
+      rm -f "$current_tmp"
+      return "$EXIT_ERR"
     fi
     mv -f "$current_tmp" "$current_path" || {
       err "failed to activate current release symlink"
