@@ -13,6 +13,15 @@ Primary repo contents:
 
 ## Working Expectations
 
+## Preflight (Required)
+
+Before making any changes in this repo:
+- Confirm you are not on `main` in the primary worktree.
+- If the current branch is `main`, stop and propose: branch name, worktree path, and base branch (`origin/main`), then wait for explicit user confirmation.
+- Run: `git fetch` and `git worktree list` (avoid duplicate worktrees).
+- Create the worktree: `git worktree add ".worktrees/<branch>" -b "<branch>" origin/main`.
+- Run all subsequent commands with `workdir=.worktrees/<branch>`.
+
 - Keep changes aligned with the repo's planning-first, schema-validated workflow
 - Preserve the role of `.opencode/schemas/handoff.schema.json` and `.opencode/schemas/result.schema.json` as the local canonical artifact contracts for this repo
 - Prefer additive, traceable documentation changes over informal notes scattered across files
