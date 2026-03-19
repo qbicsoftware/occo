@@ -9,6 +9,10 @@ Repository configuration files:
 - `opencode.mixed.json` — mixed model stack (routing/planning/review vs. code execution)
 - `opencode.openai.json` — OpenAI-based variant (including docs routing examples in this README)
 
+Product planning:
+
+- `docs/opencode-helper-cli.md` — traceable PRD, requirements, features, and later user-story source for the helper CLI
+
 ---
 
 ## Design Philosophy
