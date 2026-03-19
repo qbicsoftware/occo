@@ -910,7 +910,7 @@ Status:
 - Done
 
 PR:
-- TBD
+- https://github.com/sven1103-agent/opencode-agents/pull/22
 
 Type:
 - User-facing
