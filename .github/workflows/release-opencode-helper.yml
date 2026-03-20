@@ -1,15 +1,14 @@
 name: Release opencode-helper
 
 on:
-  push:
-    tags:
-      - "v*"
+  release:
+    types: [published]
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-opencode-helper-${{ github.ref }}
+  group: release-opencode-helper-${{ github.event.release.tag_name }}
   cancel-in-progress: false
 
 jobs:
@@ -20,10 +19,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build release bundle artifacts
+        env:
+          TAG: ${{ github.event.release.tag_name }}
         run: |
           mkdir -p release-assets
           BUNDLE_OUTPUT=$(sh scripts/release/build-opencode-helper-bundle.sh \
-            --tag "${GITHUB_REF_NAME}" \
+            --tag "${TAG}" \
             --commit-sha "${GITHUB_SHA}" \
             --output-dir release-assets)
           echo "BUNDLE_TARBALL=$(echo "$BUNDLE_OUTPUT" | sed -n '1p')" >> "$GITHUB_ENV"
@@ -32,21 +33,18 @@ jobs:
           echo "BUNDLE_INSTALLER=$(echo "$BUNDLE_OUTPUT" | sed -n '4p')" >> "$GITHUB_ENV"
           echo "BUNDLE_BOOTSTRAP=$(echo "$BUNDLE_OUTPUT" | sed -n '5p')" >> "$GITHUB_ENV"
 
-      - name: Ensure release exists
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || \
-          gh release create "${GITHUB_REF_NAME}" \
-            --target "${GITHUB_SHA}" \
-            --title "${GITHUB_REF_NAME}" \
-            --notes "Automated release for ${GITHUB_REF_NAME}."
-
       - name: Upload release assets
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+          BODY: ${{ github.event.release.body }}
         run: |
-          gh release upload "${GITHUB_REF_NAME}" \
+          if [ -n "$BODY" ] && [ "$BODY" != "null" ]; then
+            BODY_FILE=$(mktemp)
+            printf '%s' "$BODY" > "$BODY_FILE"
+            gh release edit "${TAG}" --notes-file "$BODY_FILE"
+          fi
+          gh release upload "${TAG}" \
             "${{ env.BUNDLE_TARBALL }}" \
             "${{ env.BUNDLE_MANIFEST }}" \
             "${{ env.BUNDLE_CHECKSUMS }}" \
