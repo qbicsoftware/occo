@@ -1460,7 +1460,7 @@ Rationale:
 Currently, switching presets requires two steps: `preset list` (to see names) then `preset use <name>` (to apply). This adds friction.
 
 Acceptance criteria:
-- Given `opencode-helper preset switch` is invoked in a TTY, when the command runs, then it displays a numbered list of all available presets with their descriptions.
+- Given `opencode-helper preset switch` is invoked in a TTY, when the command runs, then it displays a numbered list of all available presets with their descriptions and indicates the currently selected preset (if a valid manifest exists).
 - Given `opencode-helper preset switch` is invoked with piped stdin, when the input is a number (1-5), then the preset at that position is applied.
 - Given `opencode-helper preset switch` is invoked with piped stdin, when the input is a preset name or partial match, then the matching preset is applied.
 - Given an invalid selection, when in TTY mode, then the command shows an error and re-prompts for input.
