@@ -1373,7 +1373,7 @@ Priority:
 - P1
 
 Status:
-- In progress
+- Done
 
 PR:
 - TBD
