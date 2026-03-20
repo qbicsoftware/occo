@@ -261,6 +261,7 @@ Commands:
   help                          Show this help message
   init                          Initialize project with preset and schemas
   preset list                   List available bundled presets
+  preset current                 Show active preset from manifest
   preset use <name>             Apply a preset to output path
   release use <tag>             Switch to an already installed release
   schema install                Install schemas into project
@@ -289,6 +290,15 @@ preset list - list all bundled presets with their names and descriptions
 
 Usage:
   $(command_name) preset list
+EOF
+}
+
+usage_preset_current() {
+  cat <<EOF
+preset current - show the active preset from the manifest
+
+Usage:
+  $(command_name) preset current [--project-root PATH]
 EOF
 }
 
@@ -439,6 +449,54 @@ cmd_preset_list() {
   printf 'big-pickle\t%s\n' "$(preset_description big-pickle)"
   printf 'minimax\t%s\n' "$(preset_description minimax)"
   printf 'kimi\t%s\n' "$(preset_description kimi)"
+  return "$EXIT_OK"
+}
+
+cmd_preset_current() {
+  project_root=$1
+
+  manifest_path="$project_root/.opencode/opencode-helper-manifest.tsv"
+
+  [ -f "$manifest_path" ] || {
+    err "missing manifest: $manifest_path"
+    return "$EXIT_MISSING"
+  }
+
+  preset_name=$(read_manifest_value "$manifest_path" preset_name) || {
+    err "manifest missing preset_name"
+    return "$EXIT_DRIFT"
+  }
+
+  output_path=$(read_manifest_value "$manifest_path" output_path) || {
+    err "manifest missing output_path"
+    return "$EXIT_DRIFT"
+  }
+
+  helper_version=$(read_manifest_value "$manifest_path" helper_version) || {
+    err "manifest missing helper_version"
+    return "$EXIT_DRIFT"
+  }
+
+  [ -f "$output_path" ] || {
+    err "missing config file: $output_path"
+    return "$EXIT_MISSING"
+  }
+
+  description=$(preset_description "$preset_name") || {
+    err "manifest preset invalid: $preset_name"
+    return "$EXIT_DRIFT"
+  }
+
+  source_preset=$(preset_source_label "$preset_name") || {
+    err "manifest preset invalid: $preset_name"
+    return "$EXIT_DRIFT"
+  }
+
+  printf 'preset_name\t%s\n' "$preset_name"
+  printf 'description\t%s\n' "$description"
+  printf 'output_path\t%s\n' "$output_path"
+  printf 'source_preset\t%s\n' "$source_preset"
+  printf 'helper_version\t%s\n' "$helper_version"
   return "$EXIT_OK"
 }
 
@@ -776,6 +834,21 @@ case "$cmd" in
         fi
         [ "$rc" -eq 0 ] || exit $rc
         apply_preset "$preset_arg" "$project_root" "$output" "$force" "$dry_run" 0
+        exit $?
+        ;;
+      current)
+        for arg in "$@"; do
+          case "$arg" in
+            -h|--help) usage_preset_current; exit "$EXIT_OK" ;;
+          esac
+        done
+        project_root=$PWD
+        if [ "$#" -gt 0 ] && [ "$1" = "--project-root" ]; then
+          [ "$#" -ge 2 ] || { err "--project-root requires PATH"; exit "$EXIT_ERR"; }
+          project_root=$2
+          [ -d "$project_root" ] || { err "project root not found: $project_root"; exit "$EXIT_MISSING"; }
+        fi
+        cmd_preset_current "$project_root"
         exit $?
         ;;
       *)
