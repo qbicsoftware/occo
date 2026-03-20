@@ -241,11 +241,11 @@ preset_source_label() {
 
 preset_description() {
   case "$1" in
-    openai) printf '%s\n' "OpenAI-only model preset." ;;
-    mixed) printf '%s\n' "Mixed provider preset." ;;
-    big-pickle) printf '%s\n' "Free Big Pickle model for all agents." ;;
-    minimax) printf '%s\n' "MiniMax M2.5 for planning/review, Big Pickle for implementation." ;;
-    kimi) printf '%s\n' "Kimi K2.5 for planning/review, Big Pickle for implementation." ;;
+    openai) printf '%s\n' "OpenAI only - GPT-5.4/GPT-5.2/GPT-5.3-codex/GPT-5.1-codex-mini (paid)" ;;
+    mixed) printf '%s\n' "Mixed providers - OpenAI + Anthropic Claude models (paid)" ;;
+    big-pickle) printf '%s\n' "Free tier - all agents use Big Pickle (free, limited time)" ;;
+    minimax) printf '%s\n' "Budget hybrid - MiniMax M2.5 (planner/review), Big Pickle (implementer)" ;;
+    kimi) printf '%s\n' "Budget hybrid - Kimi K2.5 (planner/review), Big Pickle (implementer)" ;;
     *) return 1 ;;
   esac
 }
@@ -269,7 +269,7 @@ Commands:
 
 Shared options (where applicable):
   --project-root PATH   Target project root (default: current directory)
-  --preset NAME         Preset for init (big-pickle|minimax|kimi|openai|mixed; default: mixed)
+  --preset NAME         Preset for init (big-pickle|minimax|kimi|openai|mixed)
   --output PATH         Config output path (default: opencode.json)
   --force               Allow overwrite of existing output file
   --dry-run             Print planned actions without writing
@@ -332,11 +332,11 @@ Usage:
   $(command_name) preset use <name> [--project-root PATH] [--output PATH] [--force] [--dry-run]
 
 Preset names:
-  big-pickle   Free Big Pickle for all agents
-  minimax      MiniMax M2.5 for planning/review, Big Pickle for implementation
-  kimi         Kimi K2.5 for planning/review, Big Pickle for implementation
-  openai       OpenAI-only models
-  mixed        Mixed provider preset
+  big-pickle   Free tier - all agents use Big Pickle (free, limited time)
+  minimax      Budget hybrid - MiniMax M2.5 (planner/review), Big Pickle (implementer)
+  kimi         Budget hybrid - Kimi K2.5 (planner/review), Big Pickle (implementer)
+  openai       Paid - OpenAI only (GPT-5.4/GPT-5.2/GPT-5.3-codex/GPT-5.1-codex-mini)
+  mixed        Paid - OpenAI + Anthropic Claude models
 EOF
 }
 
