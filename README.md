@@ -4,6 +4,25 @@ Drop-in OpenCode agent configs that route work through schema-validated JSON han
 
 This repository contains a planning-first, multi-tier agent configuration for [OpenCode AI](https://opencode.ai), plus an OpenAI-model variant in `opencode.openai.json`. It defines specialized agents across four functional tiers — routing/orchestration, planning, execution, and validation — designed to minimize cost while preserving quality at every decision point.
 
+## Installation
+
+Install in one line (macOS / Linux):
+
+```sh
+curl -fsSL https://github.com/sven1103-agent/opencode-agents/releases/latest/download/install.sh | sh
+```
+
+Then initialize a project:
+
+```sh
+opencode-helper init --project-root .
+opencode-helper preset list
+```
+
+For alternative install options (specific version, custom path): see [Helper CLI](#helper-cli).
+
+---
+
 Repository configuration files:
 
 - `opencode.mixed.json` — mixed model stack (routing/planning/review vs. code execution)
@@ -738,16 +757,19 @@ Generated project-local layout:
 
 ### Helper release bundle assets (US-016)
 
-Tagged helper releases (`v*`) now publish three deterministic GitHub Release assets:
+Tagged helper releases (`v*`) now publish five deterministic GitHub Release assets:
 
 - `opencode-helper-<tag>.tar.gz`
 - `opencode-helper-<tag>-manifest.json`
 - `opencode-helper-<tag>-checksums.txt`
+- `opencode-helper-install`
+- `install.sh`
 
 Bundle archive layout is rooted at `opencode-helper-<tag>/` and preserves helper runtime-relative paths:
 
 ```text
 opencode-helper-<tag>/
+  install.sh
   scripts/opencode-helper
   scripts/opencode-helper-install
   opencode.openai.json
