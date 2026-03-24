@@ -55,6 +55,11 @@ cksum_file() {
   cksum < "$1" | awk '{print $1 ":" $2}'
 }
 
+# JSON escape a string: escape ", \, and control characters
+json_escape() {
+  printf '%s' "$1" | perl -pe 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g; s/\r/\\r/g; s/\n/\\n/g'
+}
+
 schema_source_file() {
   case "$1" in
     handoff) printf '%s\n' "$VENDORED_SCHEMA_DIR/handoff.schema.json" ;;
@@ -267,6 +272,9 @@ Commands:
   release use <tag>             Switch to an already installed release
   schema install                Install schemas into project
   self-update                   Update helper to latest release
+  source add <location>         Register a config source
+  source list                   List registered config sources
+  source remove <id>            Unregister a config source
   validate                      Verify setup health and detect drift
   version                       Show CLI version and bundled asset identity
 
@@ -409,6 +417,547 @@ validate - check manifest presence, config file, checksums, and schema integrity
 
 Usage:
   $(command_name) validate [--project-root PATH] [--output PATH]
+EOF
+}
+
+# === Config Source Registry Functions ===
+
+# Detect XDG_CONFIG_HOME or fall back to ~/.config
+source_xdg_config_home() {
+  if [ -n "${XDG_CONFIG_HOME:-}" ]; then
+    printf '%s\n' "$XDG_CONFIG_HOME"
+  else
+    printf '%s\n' "$HOME/.config"
+  fi
+}
+
+# Get the registry file path
+source_registry_path() {
+  config_home=$(source_xdg_config_home)
+  printf '%s/opencode-helper/config-sources.json\n' "$config_home"
+}
+
+# Ensure the registry directory exists
+source_registry_ensure_dir() {
+  registry_path=$(source_registry_path)
+  registry_dir=$(dirname "$registry_path")
+  if [ ! -d "$registry_dir" ]; then
+    mkdir -p "$registry_dir" || return "$EXIT_ERR"
+  fi
+  return "$EXIT_OK"
+}
+
+# Load the registry, returning empty JSON array if not present
+source_registry_load() {
+  registry_path=$(source_registry_path)
+  if [ ! -f "$registry_path" ]; then
+    printf '[]\n'
+    return "$EXIT_OK"
+  fi
+  cat "$registry_path"
+}
+
+# Save the registry from stdin (expects JSON array)
+source_registry_save() {
+  source_registry_ensure_dir || return $?
+  registry_path=$(source_registry_path)
+  tmp_path="$registry_path.tmp.$$"
+  cat > "$tmp_path" || return "$EXIT_ERR"
+  mv "$tmp_path" "$registry_path" || return "$EXIT_ERR"
+  return "$EXIT_OK"
+}
+
+# Generate a unique source ID based on location
+source_generate_id() {
+  location=$1
+  # Use a hash of the location for the ID
+  printf '%s' "$location" | cksum | awk '{print $1}'
+}
+
+# === Source Type Detection and Validation ===
+
+# Detect source type from location string
+# Returns: local-dir, local-tarball, github-release, or error
+source_detect_type() {
+  location=$1
+
+  # Check for GitHub release format: owner/repo or github:owner/repo
+  case "$location" in
+    github:*)
+      printf 'github-release\n'
+      return "$EXIT_OK"
+      ;;
+    */*)
+      # Check if it looks like an owner/repo pattern
+      if echo "$location" | grep -qE '^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$'; then
+        printf 'github-release\n'
+        return "$EXIT_OK"
+      fi
+      ;;
+  esac
+
+  # Check for tarball patterns
+  case "$location" in
+    *.tar|*.tar.gz|*.tgz|*.tar.bz2)
+      printf 'local-tarball\n'
+      return "$EXIT_OK"
+      ;;
+  esac
+
+  # Default to local directory
+  printf 'local-dir\n'
+  return "$EXIT_OK"
+}
+
+# Validate source location exists and is accessible
+# Returns: 0 if valid, non-zero exit code if invalid
+source_validate_location() {
+  source_type=$1
+  location=$2
+
+  case "$source_type" in
+    local-dir)
+      if [ ! -d "$location" ]; then
+        err "source directory not found: $location"
+        return "$EXIT_MISSING"
+      fi
+      if [ ! -r "$location" ]; then
+        err "source directory not readable: $location"
+        return "$EXIT_ERR"
+      fi
+      ;;
+    local-tarball)
+      if [ ! -f "$location" ]; then
+        err "source tarball not found: $location"
+        return "$EXIT_MISSING"
+      fi
+      if [ ! -r "$location" ]; then
+        err "source tarball not readable: $location"
+        return "$EXIT_ERR"
+      fi
+      # Basic tarball validation
+      if ! tar -tzf "$location" >/dev/null 2>&1; then
+        err "invalid tarball: $location"
+        return "$EXIT_DRIFT"
+      fi
+      ;;
+    github-release)
+      # Placeholder - for now just validate format
+      if ! echo "$location" | grep -qE '(^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$|^github:[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$)'; then
+        err "invalid GitHub repository format: $location"
+        return "$EXIT_ERR"
+      fi
+      ;;
+    *)
+      err "unknown source type: $source_type"
+      return "$EXIT_ERR"
+      ;;
+  esac
+
+  return "$EXIT_OK"
+}
+
+# Validate that a source contains a valid opencode-bundle manifest
+source_validate_manifest() {
+  source_type=$1
+  location=$2
+
+  manifest_filename="opencode-bundle.manifest.json"
+  manifest_path=""
+
+  case "$source_type" in
+    local-dir)
+      manifest_path="$location/$manifest_filename"
+      if [ ! -f "$manifest_path" ]; then
+        err "missing bundle manifest: $manifest_path"
+        return "$EXIT_MISSING"
+      fi
+      ;;
+    local-tarball)
+      # Extract and check manifest from tarball
+      manifest_path=$(tar -tzf "$location" 2>/dev/null | grep "$manifest_filename$" | head -1)
+      if [ -z "$manifest_path" ]; then
+        err "tarball missing bundle manifest: $manifest_filename"
+        return "$EXIT_MISSING"
+      fi
+      # Create temp dir to extract manifest for validation
+      tmp_extract=$(mktemp -d "${TMPDIR:-/tmp}/opencode-helper-manifest.XXXXXX") || return "$EXIT_ERR"
+      if ! tar -xzf "$location" -C "$tmp_extract" "$manifest_path" 2>/dev/null; then
+        rm -rf "$tmp_extract"
+        err "failed to extract manifest from tarball"
+        return "$EXIT_ERR"
+      fi
+      full_manifest_path="$tmp_extract/$manifest_path"
+      ;;
+    github-release)
+      # Placeholder - would need network access to fetch manifest
+      # For now, skip manifest validation for github sources
+      return "$EXIT_OK"
+      ;;
+    *)
+      err "unknown source type: $source_type"
+      return "$EXIT_ERR"
+      ;;
+  esac
+
+  # Validate manifest structure
+  if [ "$source_type" != "local-tarball" ]; then
+    full_manifest_path="$manifest_path"
+  fi
+
+  # Check manifest_version
+  manifest_version=$(awk -F '"' '/"manifest_version"[[:space:]]*:/ {print $4; exit}' "$full_manifest_path" 2>/dev/null)
+  if [ "$manifest_version" != "1" ]; then
+    [ "$source_type" = "local-tarball" ] && rm -rf "$tmp_extract"
+    err "unsupported manifest version: $manifest_version (expected 1)"
+    return "$EXIT_DRIFT"
+  fi
+
+  # Check bundle_name
+  bundle_name=$(awk -F '"' '/"bundle_name"[[:space:]]*:/ {print $4; exit}' "$full_manifest_path" 2>/dev/null)
+  if [ -z "$bundle_name" ]; then
+    [ "$source_type" = "local-tarball" ] && rm -rf "$tmp_extract"
+    err "manifest missing bundle_name"
+    return "$EXIT_DRIFT"
+  fi
+
+  # Check bundle_version
+  bundle_version=$(awk -F '"' '/"bundle_version"[[:space:]]*:/ {print $4; exit}' "$full_manifest_path" 2>/dev/null)
+  if [ -z "$bundle_version" ]; then
+    [ "$source_type" = "local-tarball" ] && rm -rf "$tmp_extract"
+    err "manifest missing bundle_version"
+    return "$EXIT_DRIFT"
+  fi
+
+  # Check presets array exists
+  if ! grep -q '"presets"' "$full_manifest_path" 2>/dev/null; then
+    [ "$source_type" = "local-tarball" ] && rm -rf "$tmp_extract"
+    err "manifest missing presets array"
+    return "$EXIT_DRIFT"
+  fi
+
+  # Cleanup temp extract for tarball
+  [ "$source_type" = "local-tarball" ] && rm -rf "$tmp_extract"
+
+  return "$EXIT_OK"
+}
+
+# Resolve source location to absolute path (for display purposes)
+source_resolve_location() {
+  source_type=$1
+  location=$2
+
+  case "$source_type" in
+    local-dir|local-tarball)
+      # Resolve to absolute path
+      if is_absolute_path "$location"; then
+        canonicalize_path "$location"
+      else
+        canonicalize_path "$PWD/$location"
+      fi
+      ;;
+    github-release)
+      # GitHub locations are kept as-is
+      printf '%s\n' "$location"
+      ;;
+  esac
+}
+
+# Check if a source ID already exists in the registry
+source_id_exists() {
+  source_id=$1
+  registry_json=$(source_registry_load)
+  echo "$registry_json" | grep -q "\"id\": \"$source_id\"" 2>/dev/null
+}
+
+# Check if a source location already exists in the registry
+source_location_exists() {
+  location=$1
+  resolved_location=$(source_resolve_location "$(source_detect_type "$location")" "$location")
+  registry_json=$(source_registry_load)
+  echo "$registry_json" | grep -q "\"location\": \"$resolved_location\"" 2>/dev/null
+}
+
+# === Source Command Handlers ===
+
+cmd_source_add() {
+  location=$1
+  source_name=${2:-}
+
+  [ -n "$location" ] || {
+    err "source add requires a location"
+    usage_source_add
+    return "$EXIT_ERR"
+  }
+
+  # Detect source type
+  source_type=$(source_detect_type "$location") || {
+    err "failed to detect source type"
+    return "$EXIT_ERR"
+  }
+
+  # Validate location exists
+  source_validate_location "$source_type" "$location" || return $?
+
+  # Validate manifest
+  source_validate_manifest "$source_type" "$location" || return $?
+
+  # Generate source ID
+  source_id=$(source_generate_id "$location")
+
+  # Check for duplicate ID
+  if source_id_exists "$source_id"; then
+    err "source with this location already registered (ID: $source_id)"
+    return "$EXIT_CONFLICT"
+  fi
+
+  # Resolve location for storage
+  resolved_location=$(source_resolve_location "$source_type" "$location")
+
+  # Generate name if not provided
+  if [ -z "$source_name" ]; then
+    case "$source_type" in
+      local-dir)
+        source_name=$(basename "$resolved_location")
+        ;;
+      local-tarball)
+        source_name=$(basename "$resolved_location" .tar.gz | sed 's/\.tar\..*$//')
+        ;;
+      github-release)
+        source_name=$(echo "$resolved_location" | sed 's/.*\///')
+        ;;
+    esac
+  fi
+
+  # Build source entry
+  source_entry=$(cat <<EOF
+  {
+    "id": "$source_id",
+    "name": "$(json_escape "$source_name")",
+    "type": "$source_type",
+    "location": "$(json_escape "$resolved_location")",
+    "added_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  }
+EOF
+)
+
+  # Load current registry
+  registry_json=$(source_registry_load)
+
+  # Add new entry (simple array append)
+  if [ "$registry_json" = "[]" ]; then
+    new_registry=$'[\n'"$source_entry"$'\n]'
+  else
+    # Remove trailing ] and newline, then append
+    new_registry=$(echo "$registry_json" | sed '$ d' | sed '$ s/,$//')
+    new_registry="$new_registry,"$'\n'"$source_entry"$'\n]'
+  fi
+
+  # Save registry
+  printf '%s\n' "$new_registry" | source_registry_save || {
+    err "failed to save source registry"
+    return "$EXIT_ERR"
+  }
+
+  log "added source: $source_name (ID: $source_id, type: $source_type)"
+  return "$EXIT_OK"
+}
+
+cmd_source_list() {
+  registry_path=$(source_registry_path)
+
+  if [ ! -f "$registry_path" ]; then
+    log "no sources registered"
+    return "$EXIT_OK"
+  fi
+
+  # Parse and display sources using grep and awk
+  # Extract each source entry and display its fields
+  sed -n 's/^[ ]*[{][ ]*$/---START---/p' "$registry_path" | head -1 >/dev/null || true
+  
+  # Use awk to properly parse JSON object entries
+  awk '
+    BEGIN { 
+      RS = ""
+      FS = "\n"
+    }
+    {
+      # For each record separated by blank lines
+      for (i = 1; i <= NF; i++) {
+        # Extract field values
+        if ($i ~ /"id"[[:space:]]*:/) {
+          sub(/.*"id"[[:space:]]*:[[:space:]]*/, "", $i)
+          sub(/[[:space:]]*,.*$/, "", $i)
+          gsub(/[ "]/, "", $i)
+          id = $i
+        }
+        if ($i ~ /"name"[[:space:]]*:/) {
+          sub(/.*"name"[[:space:]]*:[[:space:]]*/, "", $i)
+          sub(/[[:space:]]*,.*$/, "", $i)
+          gsub(/"/, "", $i)
+          name = $i
+        }
+        if ($i ~ /"type"[[:space:]]*:/) {
+          sub(/.*"type"[[:space:]]*:[[:space:]]*/, "", $i)
+          sub(/[[:space:]]*,.*$/, "", $i)
+          gsub(/"/, "", $i)
+          type = $i
+        }
+        if ($i ~ /"location"[[:space:]]*:/) {
+          sub(/.*"location"[[:space:]]*:[[:space:]]*/, "", $i)
+          sub(/[[:space:]]*,.*$/, "", $i)
+          gsub(/"/, "", $i)
+          location = $i
+        }
+        if ($i ~ /"added_at"[[:space:]]*:/) {
+          sub(/.*"added_at"[[:space:]]*:[[:space:]]*/, "", $i)
+          sub(/[[:space:]]*[}].*$/, "", $i)
+          gsub(/"/, "", $i)
+          added_at = $i
+        }
+      }
+      if (id != "") {
+        printf "id\t%s\n", id
+        printf "name\t%s\n", name
+        printf "type\t%s\n", type
+        printf "location\t%s\n", location
+        printf "added_at\t%s\n", added_at
+        printf "---\n"
+      }
+      id = ""; name = ""; type = ""; location = ""; added_at = ""
+    }
+  ' "$registry_path"
+
+  return "$EXIT_OK"
+}
+
+cmd_source_remove() {
+  source_id=$1
+  force=${2:-0}
+
+  [ -n "$source_id" ] || {
+    err "source remove requires a source ID"
+    usage_source_remove
+    return "$EXIT_ERR"
+  }
+
+  registry_path=$(source_registry_path)
+
+  if [ ! -f "$registry_path" ]; then
+    err "no sources registered"
+    return "$EXIT_MISSING"
+  fi
+
+  # Check if source exists
+  if ! grep -q "\"id\": \"$source_id\"" "$registry_path" 2>/dev/null; then
+    err "source not found: $source_id"
+    return "$EXIT_MISSING"
+  fi
+
+  # Get source name for confirmation
+  source_name=$(grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' "$registry_path" 2>/dev/null | sed 's/.*:[[:space:]]*//; s/"//g')
+
+  # Remove source from registry (simple text manipulation)
+  tmp_path="$registry_path.tmp.$$"
+  
+  # Use awk to filter out the source with matching ID
+  awk -v target_id="$source_id" '
+    BEGIN { in_source = 0; skip = 0; brace_count = 0; }
+    /\{/ { 
+      in_source = 1; 
+      skip = 0; 
+      brace_count = 1;
+      current_entry = "{";
+      next;
+    }
+    in_source {
+      current_entry = current_entry "\n" $0;
+      for (i = 1; i <= length($0); i++) {
+        c = substr($0, i, 1);
+        if (c == "{") brace_count++;
+        if (c == "}") brace_count--;
+      }
+      if (brace_count == 0) {
+        # Check if this entry has our target ID
+        if (current_entry ~ "\"" target_id "\"") {
+          skip = 1;
+        }
+        if (!skip) {
+          # Print the entry (removing trailing comma if this is the last)
+          gsub(/,[[:space:]]*$/, "", current_entry);
+          print current_entry;
+        }
+        in_source = 0;
+        skip = 0;
+      }
+      next;
+    }
+    !in_source && !/^[[:space:]]*$/ {
+      print;
+    }
+  ' "$registry_path" > "$tmp_path"
+
+  # Handle empty array case
+  if grep -q "^[[:space:]]*\]$" "$tmp_path" 2>/dev/null; then
+    printf '[]\n' > "$tmp_path"
+  fi
+
+  mv "$tmp_path" "$registry_path" || {
+    err "failed to update registry"
+    return "$EXIT_ERR"
+  }
+
+  log "removed source: ${source_name:-ID $source_id}"
+  return "$EXIT_OK"
+}
+
+# === Source Usage Functions ===
+
+usage_source_add() {
+  cat <<EOF
+source add - register a config source
+
+Usage:
+  $(command_name) source add <location> [--name NAME]
+
+Arguments:
+  location    Source location (directory path, tarball path, or GitHub repo)
+
+Options:
+  --name NAME    Friendly name for the source (auto-detected if not provided)
+
+Source types:
+  local-dir       A local directory containing opencode-bundle.manifest.json
+  local-tarball   A .tar.gz archive of a config bundle
+  github-release  A GitHub repository (owner/repo format)
+
+Examples:
+  $(command_name) source add ./my-presets
+  $(command_name) source add ./configs.tar.gz --name "my-configs"
+  $(command_name) source add owner/repo --name "remote-presets"
+EOF
+}
+
+usage_source_list() {
+  cat <<EOF
+source list - list all registered config sources
+
+Usage:
+  $(command_name) source list
+EOF
+}
+
+usage_source_remove() {
+  cat <<EOF
+source remove - unregister a config source
+
+Usage:
+  $(command_name) source remove <source-id>
+
+Arguments:
+  source-id    The unique ID of the source to remove
+
+Use 'source list' to see registered sources and their IDs.
 EOF
 }
 
@@ -1607,6 +2156,68 @@ case "$cmd" in
   self-update)
     cmd_self_update "$@"
     exit $?
+    ;;
+  source)
+    sub=${1:-}
+    [ "$#" -gt 0 ] && shift
+    case "$sub" in
+      add)
+        # Check for help first before processing location
+        if [ "$#" -gt 0 ] && case "$1" in -h|--help) true;; *) false;; esac; then
+          usage_source_add
+          exit "$EXIT_OK"
+        fi
+        location=${1:-}
+        [ "$#" -gt 0 ] && shift
+        source_name=""
+        while [ "$#" -gt 0 ]; do
+          case "$1" in
+            -h|--help) usage_source_add; exit "$EXIT_OK" ;;
+            --name)
+              [ "$#" -ge 2 ] || { err "--name requires a value"; usage_source_add; exit "$EXIT_ERR"; }
+              source_name=$2
+              shift 2
+              ;;
+            *) err "unknown option: $1"; usage_source_add; exit "$EXIT_ERR" ;;
+          esac
+        done
+        cmd_source_add "$location" "$source_name"
+        exit $?
+        ;;
+      list)
+        # Check for help flag first
+        if [ "$#" -gt 0 ] && case "$1" in -h|--help) true;; *) false;; esac; then
+          usage_source_list
+          exit "$EXIT_OK"
+        fi
+        if [ "$#" -gt 0 ]; then
+          err "source list accepts no arguments"
+          exit "$EXIT_ERR"
+        fi
+        cmd_source_list
+        exit $?
+        ;;
+      remove)
+        # Check for help flag first
+        if [ "$#" -gt 0 ] && case "$1" in -h|--help) true;; *) false;; esac; then
+          usage_source_remove
+          exit "$EXIT_OK"
+        fi
+        source_id=${1:-}
+        [ "$#" -gt 0 ] && shift
+        for arg in "$source_id" "$@"; do
+          case "$arg" in
+            -h|--help) usage_source_remove; exit "$EXIT_OK" ;;
+          esac
+        done
+        [ "$#" -eq 0 ] || { err "source remove accepts no flags"; usage_source_remove; exit "$EXIT_ERR"; }
+        cmd_source_remove "$source_id"
+        exit $?
+        ;;
+      *)
+        err "unknown source command: ${sub:-}"; usage; exit "$EXIT_ERR"
+        ;;
+    esac
     ;;
   validate)
     parse_common_flags "$@"
