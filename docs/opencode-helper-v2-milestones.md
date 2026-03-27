@@ -14,9 +14,23 @@ The goal is to keep the main PRD focused on product contract and traceability wh
 - Add update-capable sources only after provenance and normalized resolution are in place.
 - Keep user stories small enough that each PR can implement one primary story end-to-end.
 
+## Implementation Status
+
+> **Last updated**: 2026-03-27
+
+| Status | Count | Legend |
+|--------|-------|--------|
+| ✅ Merged | 6 | Completed and merged to main |
+| 🔄 In Progress | 0 | Currently being implemented |
+| ⏳ Open | 8 | Not yet started |
+
+---
+
 ## Recommended Milestones
 
 ### M0 - Contract and Migration Foundation
+
+**Status**: ✅ Completed
 
 Goal:
 - Freeze the minimum V2 contract so later CLI work does not guess at manifest structure or migration behavior.
@@ -24,6 +38,10 @@ Goal:
 Primary stories:
 - `US-032` - Publish a deterministic bundle manifest
 - `US-036` - Self-update preserves legacy V1 setups
+
+Implementation:
+- `US-032`: Merged via [PR #49](https://github.com/sven1103/opencode-agents/pull/49), [PR #50](https://github.com/sven1103/opencode-agents/pull/50)
+- `US-036`: Merged via [PR #52](https://github.com/sven1103/opencode-agents/pull/52)
 
 Why first:
 - `US-032` establishes the manifest contract that all sources rely on.
@@ -36,12 +54,18 @@ Exit criteria:
 
 ### M1 - Source Registry and Local Directory Workflow
 
+**Status**: ✅ Completed
+
 Goal:
 - Deliver the smallest useful V2 flow using local directories as config sources.
 
 Primary stories:
 - `US-026` - Register a config source
 - `US-033` - Register and use a local directory source
+
+Implementation:
+- `US-026`: Merged via [PR #54](https://github.com/sven1103/opencode-agents/pull/54)
+- `US-033`: Merged via [PR #55](https://github.com/sven1103/opencode-agents/pull/55)
 
 Why next:
 - Local directories are the cheapest development loop for maintainers and users.
@@ -53,6 +77,8 @@ Exit criteria:
 
 ### M2 - Discovery, Apply, and Provenance Persistence
 
+**Status**: 🔄 Partially Complete
+
 Goal:
 - Turn source registration into real project setup while ensuring provenance is captured during apply.
 
@@ -60,6 +86,11 @@ Primary stories:
 - `US-027` - List presets across registered config sources
 - `US-028` - Apply a preset from a specific bundle source/version
 - `US-029` - Materialize referenced prompt files when applying a bundle
+
+Implementation:
+- `US-027`: ✅ Merged via [PR #56](https://github.com/sven1103/opencode-agents/pull/56)
+- `US-028`: ✅ Merged via [PR #57](https://github.com/sven1103/opencode-agents/pull/57)
+- `US-029`: ⏳ Open - Not yet implemented
 
 Why here:
 - Discovery validates that manifest parsing, source identity, and registry state all work together.
@@ -75,11 +106,16 @@ Exit criteria:
 
 ### M3 - Local `.tar.gz` Bundle Distribution
 
+**Status**: ⏳ Open
+
 Goal:
 - Support portable offline bundle sharing without requiring a remote service.
 
 Primary stories:
 - `US-034` - Install and apply a bundle from a local archive
+
+Implementation:
+- `US-034`: ⏳ Open - Not yet implemented
 
 Why here:
 - Local archives are a natural next step after local directories.
@@ -92,6 +128,8 @@ Exit criteria:
 
 ### M4 - Remote Source Foundation
 
+**Status**: ⏳ Open
+
 Goal:
 - Add the first official remote source type with explicit capability handling and integrity verification.
 
@@ -99,6 +137,11 @@ Primary stories:
 - `US-038` - Surface source capabilities consistently
 - `US-035` - Install and apply a bundle from a GitHub release source
 - `US-039` - Verify remote bundle integrity before apply or update
+
+Implementation:
+- `US-035`: ⏳ Open
+- `US-038`: ⏳ Open
+- `US-039`: ⏳ Open
 
 Why here:
 - Remote release support depends on the manifest contract, normalized resolution, and local apply flow already being stable.
@@ -113,6 +156,8 @@ Exit criteria:
 
 ### M5 - Status, Updates, and Explicit Migration
 
+**Status**: ⏳ Open
+
 Goal:
 - Add the final user-facing control surfaces around already persisted provenance, update behavior, and explicit migration from legacy setups.
 
@@ -120,6 +165,11 @@ Primary stories:
 - `US-030` - Show provenance for installed bundles and applied presets
 - `US-031` - Prompt before updating to a newer bundle release
 - `US-037` - Explicitly migrate a legacy bundled-preset project to config-source management
+
+Implementation:
+- `US-030`: ⏳ Open
+- `US-031`: ⏳ Open
+- `US-037`: ⏳ Open
 
 Why here:
 - `bundle status` can now read provenance written by the apply flow.
@@ -152,20 +202,22 @@ Legacy migration path:
 
 ## Recommended Primary Story Order
 
-1. `US-032`
-2. `US-036`
-3. `US-026`
-4. `US-033`
-5. `US-027`
-6. `US-028`
-7. `US-029`
-8. `US-034`
-9. `US-038`
-10. `US-035`
-11. `US-039`
-12. `US-030`
-13. `US-031`
-14. `US-037`
+| # | Story | Status | PR Reference |
+|---|-------|--------|---------------|
+| 1 | `US-032` | ✅ Merged | PR #49, #50 |
+| 2 | `US-036` | ✅ Merged | PR #52 |
+| 3 | `US-026` | ✅ Merged | PR #54 |
+| 4 | `US-033` | ✅ Merged | PR #55 |
+| 5 | `US-027` | ✅ Merged | PR #56 |
+| 6 | `US-028` | ✅ Merged | PR #57 |
+| 7 | `US-029` | ⏳ Open | - |
+| 8 | `US-034` | ⏳ Open | - |
+| 9 | `US-038` | ⏳ Open | - |
+| 10 | `US-035` | ⏳ Open | - |
+| 11 | `US-039` | ⏳ Open | - |
+| 12 | `US-030` | ⏳ Open | - |
+| 13 | `US-031` | ⏳ Open | - |
+| 14 | `US-037` | ⏳ Open | - |
 
 ## Notes
 
