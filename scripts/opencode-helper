@@ -578,20 +578,57 @@ source_validate_manifest() {
       fi
       ;;
     local-tarball)
-      # Extract and check manifest from tarball
-      manifest_path=$(tar -tzf "$location" 2>/dev/null | grep "$manifest_filename$" | head -1)
-      if [ -z "$manifest_path" ]; then
-        err "tarball missing bundle manifest: $manifest_filename"
+      # Check tarball structure before looking for manifest
+      tar_contents=$(tar -tzf "$location" 2>/dev/null)
+      if [ -z "$tar_contents" ]; then
+        err "tarball is empty: $location"
         return "$EXIT_MISSING"
       fi
-      # Create temp dir to extract manifest for validation
-      tmp_extract=$(mktemp -d "${TMPDIR:-/tmp}/opencode-helper-manifest.XXXXXX") || return "$EXIT_ERR"
-      if ! tar -xzf "$location" -C "$tmp_extract" "$manifest_path" 2>/dev/null; then
-        rm -rf "$tmp_extract"
-        err "failed to extract manifest from tarball"
-        return "$EXIT_ERR"
+      
+      # Get top-level items (directories and files), removing leading './' prefix
+      cleaned_contents=$(printf '%s\n' "$tar_contents" | sed 's/^\.\///')
+      top_level_items=$(printf '%s\n' "$cleaned_contents" | awk -F'/' '{print $1}' | sort -u)
+      top_level_count=$(printf '%s\n' "$top_level_items" | grep -c .)
+      
+      # Handle empty tarball (only './' entries)
+      if [ "$top_level_count" -eq 0 ]; then
+        err "tarball has no root directory: $location"
+        return "$EXIT_MISSING"
       fi
-      full_manifest_path="$tmp_extract/$manifest_path"
+      
+      # Check if manifest is at root level
+      manifest_path=$(printf '%s\n' "$cleaned_contents" | grep -E "^${manifest_filename}$" | head -1)
+      
+      if [ -n "$manifest_path" ]; then
+        # Manifest at root - valid structure, extract for validation
+        tmp_extract=$(mktemp -d "${TMPDIR:-/tmp}/opencode-helper-manifest.XXXXXX") || return "$EXIT_ERR"
+        if ! tar -xzf "$location" -C "$tmp_extract" "$manifest_path" 2>/dev/null; then
+          rm -rf "$tmp_extract"
+          err "failed to extract manifest from tarball"
+          return "$EXIT_ERR"
+        fi
+        full_manifest_path="$tmp_extract/$manifest_path"
+      elif [ "$top_level_count" -eq 1 ]; then
+        # Single top-level directory - check if manifest is inside it
+        top_level_dir=$(printf '%s\n' "$top_level_items" | head -1)
+        manifest_path=$(printf '%s\n' "$tar_contents" | grep -E "^${top_level_dir}/${manifest_filename}$" | head -1)
+        if [ -z "$manifest_path" ]; then
+          err "tarball missing bundle manifest: $manifest_filename"
+          return "$EXIT_MISSING"
+        fi
+        # Extract manifest for validation
+        tmp_extract=$(mktemp -d "${TMPDIR:-/tmp}/opencode-helper-manifest.XXXXXX") || return "$EXIT_ERR"
+        if ! tar -xzf "$location" -C "$tmp_extract" "$manifest_path" 2>/dev/null; then
+          rm -rf "$tmp_extract"
+          err "failed to extract manifest from tarball"
+          return "$EXIT_ERR"
+        fi
+        full_manifest_path="$tmp_extract/$manifest_path"
+      else
+        # Multiple top-level items - ambiguous structure
+        err "tarball has multiple top-level items (expected single directory or manifest at root): $location"
+        return "$EXIT_MISSING"
+      fi
       ;;
     github-release)
       # Placeholder - would need network access to fetch manifest
@@ -610,7 +647,7 @@ source_validate_manifest() {
   fi
 
   # Check manifest_version
-  manifest_version=$(awk -F '"' '/"manifest_version"[[:space:]]*:/ {print $4; exit}' "$full_manifest_path" 2>/dev/null)
+  manifest_version=$(awk -F '"' '/"manifest_version"[[:space:]]*:/ {gsub(/[^0-9]/, "", $3); print $3; exit}' "$full_manifest_path" 2>/dev/null)
   if [ "$manifest_version" != "1" ]; then
     [ "$source_type" = "local-tarball" ] && rm -rf "$tmp_extract"
     err "unsupported manifest version: $manifest_version (expected 1)"
@@ -618,7 +655,7 @@ source_validate_manifest() {
   fi
 
   # Check bundle_name
-  bundle_name=$(awk -F '"' '/"bundle_name"[[:space:]]*:/ {print $4; exit}' "$full_manifest_path" 2>/dev/null)
+  bundle_name=$(awk -F '"' '/"bundle_name"[[:space:]]*:/ {gsub(/[^a-zA-Z0-9_-]/, "", $4); print $4; exit}' "$full_manifest_path" 2>/dev/null)
   if [ -z "$bundle_name" ]; then
     [ "$source_type" = "local-tarball" ] && rm -rf "$tmp_extract"
     err "manifest missing bundle_name"
@@ -626,7 +663,7 @@ source_validate_manifest() {
   fi
 
   # Check bundle_version
-  bundle_version=$(awk -F '"' '/"bundle_version"[[:space:]]*:/ {print $4; exit}' "$full_manifest_path" 2>/dev/null)
+  bundle_version=$(awk -F '"' '/"bundle_version"[[:space:]]*:/ {gsub(/[^a-zA-Z0-9._-]/, "", $4); print $4; exit}' "$full_manifest_path" 2>/dev/null)
   if [ -z "$bundle_version" ]; then
     [ "$source_type" = "local-tarball" ] && rm -rf "$tmp_extract"
     err "manifest missing bundle_version"
@@ -816,11 +853,34 @@ bundle_resolve_to_local() {
         err "failed to extract tarball: $source_location"
         return "$EXIT_ERR"
       fi
-      # Find the extracted root (first directory in the tarball)
-      bundle_root=$(find "$tmp_extract" -mindepth 1 -maxdepth 1 -type d | head -1)
-      if [ -z "$bundle_root" ]; then
+
+      # Determine bundle_root based on archive structure:
+      # Pattern 1: Single top-level directory (bundle content under a parent dir)
+      # Pattern 2: Manifest directly at root (bundle content at root level)
+
+      # Get all top-level items (directories and files) in extracted archive
+      top_level_count=$(find "$tmp_extract" -mindepth 1 -maxdepth 1 | wc -l)
+      top_level_dirs=$(find "$tmp_extract" -mindepth 1 -maxdepth 1 -type d)
+      top_level_dir_count=$(echo "$top_level_dirs" | wc -l)
+
+      # Check if manifest exists directly at root (Pattern 2)
+      manifest_at_root="$tmp_extract/opencode-bundle.manifest.json"
+
+      if [ -f "$manifest_at_root" ]; then
+        # Pattern 2: Bundle content is at root level
+        bundle_root="$tmp_extract"
+      elif [ "$top_level_dir_count" -eq 1 ]; then
+        # Pattern 1: Single top-level directory
+        bundle_root=$(echo "$top_level_dirs" | head -1)
+      elif [ "$top_level_count" -eq 0 ]; then
+        # Empty archive
         rm -rf "$tmp_extract"
         err "tarball has no root directory: $source_location"
+        return "$EXIT_ERR"
+      else
+        # Multiple top-level directories/files - ambiguous structure
+        rm -rf "$tmp_extract"
+        err "tarball has multiple top-level items (expected single directory or manifest at root): $source_location"
         return "$EXIT_ERR"
       fi
       # Extract will be cleaned up by the caller
@@ -844,7 +904,7 @@ bundle_resolve_to_local() {
   fi
 
   # Validate manifest structure
-  manifest_version=$(awk -F '"' '/"manifest_version"[[:space:]]*:/ {print $4; exit}' "$manifest_path" 2>/dev/null)
+  manifest_version=$(awk -F '"' '/"manifest_version"[[:space:]]*:/ {gsub(/[^0-9]/, "", $3); print $3; exit}' "$manifest_path" 2>/dev/null)
   if [ "$manifest_version" != "1" ]; then
     [ "$source_type" = "local-tarball" ] && rm -rf "$tmp_extract"
     err "unsupported manifest version: $manifest_version (expected 1)"
