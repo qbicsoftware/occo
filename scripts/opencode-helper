@@ -3476,14 +3476,6 @@ selfupdate_install_release() {
   release_parent="$install_home/releases"
   release_dir="$release_parent/$release_tag"
   
-  log "DEBUG install: src_bundle=$src_bundle"
-  log "DEBUG install: is file? $([ -f "$src_bundle" ] && echo yes || echo no)"
-  log "DEBUG install: is dir? $([ -d "$src_bundle" ] && echo yes || echo no)"
-  
-  if [ -d "$src_bundle" ]; then
-    log "DEBUG install: listing source dir: $(ls -la "$src_bundle")"
-  fi
-  
   mkdir -p "$release_parent" || {
     err "failed to create releases directory"
     return 1
@@ -3497,7 +3489,6 @@ selfupdate_install_release() {
   
   # Handle both tarball and extracted directory
   if [ -f "$src_bundle" ]; then
-    log "DEBUG install: handling as tarball"
     # It's a tarball - extract it
     tar -xf "$src_bundle" -C "$release_dir.tmp.$$" || {
       err "failed to extract release bundle"
@@ -3506,28 +3497,27 @@ selfupdate_install_release() {
     }
     # Move the extracted contents up one level (remove the opencode-helper-VERSION prefix)
     inner_dir=$(find "$release_dir.tmp.$$" -mindepth 1 -maxdepth 1 -type d | head -1)
-    log "DEBUG install: inner_dir=$inner_dir"
     if [ -n "$inner_dir" ]; then
       mv "$inner_dir"/* "$release_dir.tmp.$$/" 2>/dev/null || true
+      mv "$inner_dir"/.* "$release_dir.tmp.$$/" 2>/dev/null || true
       rmdir "$inner_dir" 2>/dev/null || true
     fi
   elif [ -d "$src_bundle" ]; then
-    log "DEBUG install: handling as directory"
     # It's already a directory (from selfupdate_download_and_verify) - copy contents
-    log "DEBUG install: copying from $src_bundle"
-    ls -la "$src_bundle"
-    cp -R "$src_bundle"/* "$release_dir.tmp.$$/" || {
-      err "failed to copy release bundle contents"
+    # Use find + cpio for more reliable copy
+    (cd "$src_bundle" && find . -depth -print | cpio -pdmu "$release_dir.tmp.$$") 2>/dev/null || {
+      # Fallback to cp if cpio fails
       rm -rf "$release_dir.tmp.$$"
-      return 1
+      mkdir -p "$release_dir.tmp.$$"
+      cp -R "$src_bundle"/* "$release_dir.tmp.$$/" 2>/dev/null || {
+        cp -R "$src_bundle" "$release_dir.tmp.$$/tmp_src" && mv "$release_dir.tmp.$$/tmp_src"/* "$release_dir.tmp.$$/" 2>/dev/null || true
+      }
     }
   else
     err "invalid source bundle: $src_bundle"
     rm -rf "$release_dir.tmp.$$"
     return 1
   fi
-  
-  log "DEBUG install: temp dir after copy: $(ls -la "$release_dir.tmp.$$")"
   
   rm -rf "$release_dir"
   mv "$release_dir.tmp.$$" "$release_dir" || {
