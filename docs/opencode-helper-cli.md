@@ -2110,10 +2110,10 @@ Priority:
 - P1
 
 Status:
-- Planned
+- Done
 
 PR:
-- TBD
+- #66
 
 Type:
 - User-facing

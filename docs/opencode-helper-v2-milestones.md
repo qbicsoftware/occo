@@ -167,7 +167,7 @@ Primary stories:
 - `US-037` - Explicitly migrate a legacy bundled-preset project to config-source management
 
 Implementation:
-- `US-030`: ⏳ Open
+- `US-030`: ✅ Merged (PR #66)
 - `US-031`: ⏳ Open
 - `US-037`: ⏳ Open
 
@@ -215,7 +215,7 @@ Legacy migration path:
 | 9 | `US-038` | ✅ Merged | PR #63 |
 | 10 | `US-035` | ✅ Merged | PR #64 |
 | 11 | `US-039` | ✅ Merged | PR #65 |
-| 12 | `US-030` | ⏳ Open | - |
+| 12 | `US-030` | ✅ Merged | PR #66 |
 | 13 | `US-031` | ⏳ Open | - |
 | 14 | `US-037` | ⏳ Open | - |
 
