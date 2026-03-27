@@ -11,6 +11,9 @@ EXIT_CAPABILITY=5
 
 HELPER_VERSION="0.1.0"
 
+# Global variable to store the last fetched tag_name (avoids redundant API calls)
+GITHUB_LAST_TAG_NAME=""
+
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 VENDORED_SCHEMA_DIR="$REPO_ROOT/.opencode/schemas"
@@ -871,15 +874,15 @@ github_fetch_release_info() {
   tmp_json=$(mktemp "${TMPDIR:-/tmp}/opencode-helper-github-release.XXXXXX") || return "$EXIT_ERR"
   
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$api_url" -o "$tmp_json" 2>/dev/null || {
+    curl -fsSL --max-time 60 "$api_url" -o "$tmp_json" 2>/dev/null || {
       rm -f "$tmp_json"
-      err "failed to fetch release info from GitHub: $github_repo"
+      err "failed to fetch release info from GitHub: $github_repo (network timeout or error)"
       return "$EXIT_ERR"
     }
   elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$tmp_json" "$api_url" 2>/dev/null || {
+    wget -q -T 60 -O "$tmp_json" "$api_url" 2>/dev/null || {
       rm -f "$tmp_json"
-      err "failed to fetch release info from GitHub: $github_repo"
+      err "failed to fetch release info from GitHub: $github_repo (network timeout or error)"
       return "$EXIT_ERR"
     }
   else
@@ -893,7 +896,18 @@ github_fetch_release_info() {
     msg=$(awk -F '"' '/"message"[[:space:]]*:/ {print $4; exit}' "$tmp_json")
     if [ -n "$msg" ]; then
       rm -f "$tmp_json"
-      err "GitHub API error: $msg"
+      # Check for rate limit errors
+      case "$msg" in
+        *rate*limit*|*Rate*limit*|*RATE*LIMIT*)
+          err "GitHub API rate limit exceeded. Wait a while or use authentication (GITHUB_TOKEN)."
+          ;;
+        *Forbidden*|*forbidden*)
+          err "GitHub API access forbidden. Check your authentication or rate limits."
+          ;;
+        *)
+          err "GitHub API error: $msg"
+          ;;
+      esac
       return "$EXIT_ERR"
     fi
   fi
@@ -905,6 +919,9 @@ github_fetch_release_info() {
     err "failed to parse tag_name from release"
     return "$EXIT_ERR"
   fi
+
+  # Store in global variable for reuse (avoids redundant API call)
+  GITHUB_LAST_TAG_NAME="$tag_name"
   
   # Find the .tar.gz asset
   asset_url=$(awk -F '"' '/browser_download_url.*\.tar\.gz/ {print $4; exit}' "$tmp_json")
@@ -950,7 +967,16 @@ github_download_bundle() {
   cached_tarball=$(github_cache_path "$github_repo" "$tag_name").tar.gz
   cached_extract=$(github_cache_path "$github_repo" "$tag_name")
   
-  if [ -d "$cached_extract" ]; then
+  # Validate cache: check tarball exists AND manifest exists in extracted directory
+  cache_valid=false
+  if [ -f "$cached_tarball" ] && [ -d "$cached_extract" ]; then
+    # Check if manifest exists in extracted directory
+    if find "$cached_extract" -mindepth 1 -maxdepth 2 -name "opencode-bundle.manifest.json" | grep -q .; then
+      cache_valid=true
+    fi
+  fi
+  
+  if [ "$cache_valid" = true ]; then
     log "using cached bundle for $github_repo:$tag_name"
     cached_bundle_path="$cached_tarball"
     return "$EXIT_OK"
@@ -960,15 +986,17 @@ github_download_bundle() {
   log "downloading bundle from GitHub: $github_repo:$tag_name"
   
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$asset_url" -o "$cached_tarball" || {
-      err "failed to download bundle"
+    curl -fsSL --max-time 60 "$asset_url" -o "$cached_tarball" || {
+      err "failed to download bundle (network timeout or error)"
       rm -f "$cached_tarball"
+      rm -rf "$cached_extract"
       return "$EXIT_ERR"
     }
   elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$cached_tarball" "$asset_url" || {
-      err "failed to download bundle"
+    wget -q -T 60 -O "$cached_tarball" "$asset_url" || {
+      err "failed to download bundle (network timeout or error)"
       rm -f "$cached_tarball"
+      rm -rf "$cached_extract"
       return "$EXIT_ERR"
     }
   else
@@ -1207,9 +1235,12 @@ bundle_resolve_to_local() {
       # Download (or use cached) bundle from GitHub
       github_download_bundle "$github_repo" "$version_tag" || return $?
       
-      # Get the tag from the cached bundle
-      release_info=$(github_fetch_release_info "$github_repo" "$version_tag") || return $?
-      tag_name=$(printf '%s\n' "$release_info" | awk -F ':' '/^tag:/ {for(i=2;i<=NF;i++) printf "%s", $i; print ""; exit}')
+      # Get the tag from the global variable (set by github_fetch_release_info inside github_download_bundle)
+      tag_name="$GITHUB_LAST_TAG_NAME"
+      if [ -z "$tag_name" ]; then
+        err "failed to get tag_name from cached bundle"
+        return "$EXIT_ERR"
+      fi
       
       bundle_root=$(github_cache_path "$github_repo" "$tag_name")
       
