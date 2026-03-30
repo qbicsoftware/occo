@@ -21,7 +21,7 @@ The goal is to migrate from bash to Go for better JSON handling, testability, an
 | Status | Count | Legend |
 |--------|-------|--------|
 | 🔄 In Progress | 1 | Currently being implemented |
-| ⏳ Open | 11 | Not yet started |
+| ⏳ Open | 9 | Not yet started |
 
 ---
 
@@ -29,7 +29,7 @@ The goal is to migrate from bash to Go for better JSON handling, testability, an
 
 ### M1 - Foundation
 
-**Status**: ⏳ Open
+**Status**: ✅ Done
 
 Goal:
 - Set up Go project structure with cobra scaffolding
@@ -40,8 +40,8 @@ Primary stories:
 - `US-041` - Add GitHub Actions CI
 
 Implementation:
-- `US-040`: 🔄 In Progress (PR #83)
-- `US-041`: ⏳ Open
+- `US-040`: ✅ Done (merged PR #83)
+- `US-041`: ✅ Done (merged PR #84)
 
 Why first:
 - Foundation must be solid before implementing commands
@@ -59,7 +59,7 @@ Exit criteria:
 
 ### M2 - MVP Commands
 
-**Status**: ⏳ Open
+**Status**: 🔄 In Progress
 
 Goal:
 - Implement the core commands users need day-to-day
@@ -70,7 +70,7 @@ Primary stories:
 - `US-044` - Implement schema install and validate commands
 
 Implementation:
-- `US-042`: ⏳ Open
+- `US-042`: 🔄 In Progress (PR #85)
 - `US-043`: ⏳ Open
 - `US-044`: ⏳ Open
 
@@ -172,18 +172,18 @@ Polish depends on extended:
 
 | # | Story | Status | Description |
 |---|-------|--------|-------------|
-| 1 | `US-040` | 🔄 In Progress | Set up Go project structure (PR #83) |
-| 2 | `US-041` | ⏳ Open | Add GitHub Actions CI |
-| 3 | `US-042` | ⏳ Open | Implement init command |
-| 4 | `US-043` | ⏳ Open | Implement preset list/use |
-| 5 | `US-044` | ⏳ Open | Implement schema install/validate |
-| 6 | `US-045` | ⏳ Open | Implement source commands |
-| 7 | `US-046` | ⏳ Open | Implement bundle commands |
-| 8 | `US-047` | ⏳ Open | Implement update command |
-| 9 | `US-048` | ⏳ Open | Add shell completions |
-| 10 | `US-049` | ⏳ Open | Add --interactive flag |
-| 11 | `US-050` | ⏳ Open | Set up goreleaser |
-| 12 | `US-051` | ⏳ Open | Create Homebrew tap |
+ | 1 | `US-040` | ✅ Done | Set up Go project structure (PR #83) |
+ | 2 | `US-041` | ✅ Done | Add GitHub Actions CI (PR #84) |
+ | 3 | `US-042` | 🔄 In Progress | Implement init command (PR #85) |
+ | 4 | `US-043` | ⏳ Open | Implement preset list/use |
+ | 5 | `US-044` | ⏳ Open | Implement schema install/validate |
+ | 6 | `US-045` | ⏳ Open | Implement source commands |
+ | 7 | `US-046` | ⏳ Open | Implement bundle commands |
+ | 8 | `US-047` | ⏳ Open | Implement update command |
+ | 9 | `US-048` | ⏳ Open | Add shell completions |
+ | 10 | `US-049` | ⏳ Open | Add --interactive flag |
+ | 11 | `US-050` | ⏳ Open | Set up goreleaser |
+ | 12 | `US-051` | ⏳ Open | Create Homebrew tap |
 
 ---
 
