@@ -12,6 +12,16 @@ OpenCode configuration presets are now distributed via separate bundle repositor
 
 - [qbicsoftware/opencode-config-bundle](https://github.com/qbicsoftware/opencode-config-bundle) - Official configuration bundle with multiple presets
 
+## V2 Bundle Contract
+
+The V2 bundle manifest is a published contract between configuration bundles and the CLI:
+
+- **Schema-Validated**: The CLI validates bundles against the manifest schema before accepting them
+- **Forward-Compatible**: The `manifest_version` field ensures old CLIs can reject new bundle formats
+- **Documented**: Full contract specification in [`docs/opencode-helper-cli.md`](docs/opencode-helper-cli.md#bundle-manifest-reference)
+
+Any bundle that includes a valid `opencode-bundle.manifest.json` at its root is a valid OpenCode configuration bundle.
+
 ## Quick Start
 
 Install the helper CLI:
