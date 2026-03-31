@@ -42,7 +42,7 @@ release:
   github:
     owner: sven1103
     name: opencode-agents
-  draft: true
+  draft: false
   prerelease: auto
   name_template: "{{.Tag}}"
 
