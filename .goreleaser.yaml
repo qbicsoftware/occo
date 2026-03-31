@@ -71,9 +71,8 @@ release:
 
 brews:
   - name: opencode-helper
-    tap:
-      owner: sven1103
-      name: homebrew-opencode-helper
+    owner: sven1103
+    repository: homebrew-opencode-helper
     description: OpenCode agent configuration helper CLI
     homepage: https://github.com/sven1103/opencode-agents
     license: AGPL-3.0
