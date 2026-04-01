@@ -67,6 +67,14 @@ oc source add qbicsoftware/opencode-config-bundle --name qbic
 oc bundle apply qbic --preset mixed --project-root .
 ```
 
+GitHub sources can be registered in any of these forms:
+
+- `qbicsoftware/opencode-config-bundle`
+- `github.com/qbicsoftware/opencode-config-bundle`
+- `https://github.com/qbicsoftware/opencode-config-bundle/releases/tag/1.0.0-alpha.1`
+
+For GitHub release sources, the selected release must publish a bundle `.tar.gz` asset containing `opencode-bundle.manifest.json` at the archive root or under a single top-level directory. If a `-checksums.txt` asset is present, `oc` verifies the downloaded bundle before apply.
+
 ## Prerelease Feedback
 
 Please smoke-test prereleases and open a GitHub issue if you find a problem.
@@ -142,11 +150,17 @@ oc migrate legacy-config --project-root ./myproject
 # Register a GitHub release as config source
 oc source add sven1103-agent/opencode-config-bundle --name my-config
 
+# Register a pinned release URL instead of the repository default
+oc source add https://github.com/sven1103-agent/opencode-config-bundle/releases/tag/v1.2.3 --name my-config-v123
+
 # List registered sources
 oc source list
 
 # Apply a preset from the source
 oc bundle apply <source-id> --preset openai --project-root ./myproject
+
+# Apply a specific GitHub release version
+oc bundle apply <source-id> --version v1.2.3 --preset openai --project-root ./myproject
 
 # Check bundle status
 oc bundle status --project-root ./myproject

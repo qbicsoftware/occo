@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sven1103-agent/opencode-config-cli/internal/source"
@@ -111,6 +112,47 @@ func TestSourceAddInvalidLocation(t *testing.T) {
 	err := runSourceAdd("/nonexistent/path/12345")
 	if err == nil {
 		t.Error("runSourceAdd() expected error for invalid location")
+	}
+}
+
+func TestSourceAddGitHubRepository(t *testing.T) {
+	restore := saveRegistry(t)
+	defer restore()
+
+	registry, _ := source.LoadRegistry()
+	registry.Sources = []source.Source{}
+	if err := source.SaveRegistry(registry); err != nil {
+		t.Fatalf("failed to save registry: %v", err)
+	}
+
+	sourceName = ""
+	err := runSourceAdd("qbicsoftware/opencode-config-bundle")
+	if err != nil {
+		t.Fatalf("runSourceAdd() error = %v", err)
+	}
+
+	sources, err := source.ListSources()
+	if err != nil {
+		t.Fatalf("source.ListSources() error = %v", err)
+	}
+	if len(sources) != 1 {
+		t.Fatalf("expected 1 source, got %d", len(sources))
+	}
+	if sources[0].Type != source.SourceTypeGitHubRelease {
+		t.Fatalf("source type = %q, want %q", sources[0].Type, source.SourceTypeGitHubRelease)
+	}
+	if sources[0].Location != "qbicsoftware/opencode-config-bundle" {
+		t.Fatalf("source location = %q", sources[0].Location)
+	}
+}
+
+func TestSourceAddInvalidGitHubRef(t *testing.T) {
+	err := runSourceAdd("github.com/qbicsoftware")
+	if err == nil {
+		t.Fatal("runSourceAdd() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "invalid GitHub") {
+		t.Fatalf("runSourceAdd() error = %v, want invalid GitHub", err)
 	}
 }
 

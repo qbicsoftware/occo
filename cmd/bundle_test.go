@@ -3,9 +3,11 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sven1103-agent/opencode-config-cli/internal/bundle"
+	"github.com/sven1103-agent/opencode-config-cli/internal/source"
 )
 
 // setupTestProject creates a temporary project directory
@@ -127,6 +129,68 @@ func TestBundleUpdateNonGitHub(t *testing.T) {
 	}
 }
 
+func TestBundleApplyPassesVersionForGitHubSources(t *testing.T) {
+	restore := saveRegistry(t)
+	defer restore()
+
+	registry, _ := source.LoadRegistry()
+	registry.Sources = []source.Source{{
+		ID:       "github1",
+		Location: "qbicsoftware/opencode-config-bundle",
+		Type:     source.SourceTypeGitHubRelease,
+		Name:     "qbic",
+	}}
+	if err := source.SaveRegistry(registry); err != nil {
+		t.Fatalf("failed to save registry: %v", err)
+	}
+
+	projectRoot := setupTestProject(t)
+	defer os.RemoveAll(projectRoot)
+
+	origPreset := bundlePreset
+	origProjectRoot := bundleProjectRoot
+	origVersion := bundleVersion
+	origResolver := bundleResolveToLocal
+	defer func() {
+		bundlePreset = origPreset
+		bundleProjectRoot = origProjectRoot
+		bundleVersion = origVersion
+		bundleResolveToLocal = origResolver
+	}()
+
+	bundlePreset = "test"
+	bundleProjectRoot = projectRoot
+	bundleVersion = "v1.2.3"
+	bundleResolveToLocal = func(sourceType, sourceLocation, versionTag string) (string, func(), error) {
+		if sourceType != "github-release" {
+			t.Fatalf("sourceType = %q, want github-release", sourceType)
+		}
+		if sourceLocation != "qbicsoftware/opencode-config-bundle" {
+			t.Fatalf("sourceLocation = %q", sourceLocation)
+		}
+		if versionTag != "v1.2.3" {
+			t.Fatalf("versionTag = %q, want v1.2.3", versionTag)
+		}
+
+		bundleRoot := t.TempDir()
+		manifest := `{"manifest_version":"1.0.0","bundle_name":"qbic","bundle_version":"v1.2.3","presets":[{"name":"test","entrypoint":"test.json"}]}`
+		if err := os.WriteFile(filepath.Join(bundleRoot, "opencode-bundle.manifest.json"), []byte(manifest), 0644); err != nil {
+			return "", nil, err
+		}
+		if err := os.WriteFile(filepath.Join(bundleRoot, "test.json"), []byte(`{"agents":[]}`), 0644); err != nil {
+			return "", nil, err
+		}
+		return bundleRoot, func() {}, nil
+	}
+
+	if err := runBundleApply("github1"); err != nil {
+		t.Fatalf("runBundleApply() error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, "opencode.json")); err != nil {
+		t.Fatalf("expected opencode.json to be written: %v", err)
+	}
+}
+
 // TestBundleApplyFlags tests that bundle apply flags are properly configured
 func TestBundleApplyFlags(t *testing.T) {
 	if bundleApplyCmd.Flags().Lookup("preset") == nil {
@@ -154,5 +218,60 @@ func TestBundleStatusFlags(t *testing.T) {
 func TestBundleUpdateFlags(t *testing.T) {
 	if bundleUpdateCmd.Flags().Lookup("yes") == nil {
 		t.Error("yes flag should exist on bundle update command")
+	}
+}
+
+func TestBundleApplyVersionFlagExists(t *testing.T) {
+	if bundleApplyCmd.Flags().Lookup("version") == nil {
+		t.Fatal("version flag should exist on bundle apply command")
+	}
+}
+
+func TestBundleApplyRejectsVersionForLocalSources(t *testing.T) {
+	restore := saveRegistry(t)
+	defer restore()
+
+	bundleDir := t.TempDir()
+	manifest := `{"manifest_version":"1.0.0","bundle_name":"local","bundle_version":"v1.0.0","presets":[{"name":"test","entrypoint":"test.json"}]}`
+	if err := os.WriteFile(filepath.Join(bundleDir, "opencode-bundle.manifest.json"), []byte(manifest), 0644); err != nil {
+		t.Fatalf("failed to write manifest: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(bundleDir, "test.json"), []byte(`{"agents":[]}`), 0644); err != nil {
+		t.Fatalf("failed to write preset: %v", err)
+	}
+
+	registry, _ := source.LoadRegistry()
+	registry.Sources = []source.Source{{
+		ID:       "local1",
+		Location: bundleDir,
+		Type:     source.SourceTypeLocalDirectory,
+		Name:     "local",
+	}}
+	if err := source.SaveRegistry(registry); err != nil {
+		t.Fatalf("failed to save registry: %v", err)
+	}
+
+	projectRoot := setupTestProject(t)
+	defer os.RemoveAll(projectRoot)
+
+	origPreset := bundlePreset
+	origProjectRoot := bundleProjectRoot
+	origVersion := bundleVersion
+	defer func() {
+		bundlePreset = origPreset
+		bundleProjectRoot = origProjectRoot
+		bundleVersion = origVersion
+	}()
+
+	bundlePreset = "test"
+	bundleProjectRoot = projectRoot
+	bundleVersion = "v1.2.3"
+
+	err := runBundleApply("local1")
+	if err == nil {
+		t.Fatal("runBundleApply() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "--version is only supported for github-release sources") {
+		t.Fatalf("runBundleApply() error = %v", err)
 	}
 }

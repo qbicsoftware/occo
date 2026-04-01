@@ -25,6 +25,8 @@ that contains OpenCode configuration bundles.
 Examples:
   oc source add ./my-config-bundle
   oc source add ./release.tar.gz --name my-archive
+  oc source add qbicsoftware/opencode-config-bundle --name qbic
+  oc source add https://github.com/qbicsoftware/opencode-config-bundle/releases/tag/1.0.0-alpha.1
   oc source list
   oc source remove abc12345`,
 }
@@ -43,7 +45,9 @@ The location can be:
 Examples:
   oc source add ./my-config-bundle
   oc source add ./release.tar.gz --name my-archive
-  oc source add github.com/user/repo`,
+  oc source add qbicsoftware/opencode-config-bundle
+  oc source add github.com/qbicsoftware/opencode-config-bundle
+  oc source add https://github.com/qbicsoftware/opencode-config-bundle/releases/tag/1.0.0-alpha.1`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runSourceAdd(args[0])

@@ -12,12 +12,14 @@ import (
 )
 
 var (
-	bundleProjectRoot string
-	bundlePreset      string
-	bundleForce       bool
-	bundleDryRun      bool
-	bundleOutput      string
-	bundleYes         bool
+	bundleProjectRoot    string
+	bundlePreset         string
+	bundleVersion        string
+	bundleForce          bool
+	bundleDryRun         bool
+	bundleOutput         string
+	bundleYes            bool
+	bundleResolveToLocal = bundle.ResolveToLocal
 )
 
 // bundleCmd represents the bundle command
@@ -45,6 +47,7 @@ The preset name must exist in the bundle's manifest.
 
 Examples:
   oc bundle apply abc12345 --preset default
+  oc bundle apply abc12345 --version v1.2.3 --preset default
   oc bundle apply abc12345 --preset minimal --project-root ./myproject
   oc bundle apply abc12345 --preset default --force`,
 	Args: cobra.ExactArgs(1),
@@ -96,6 +99,7 @@ func init() {
 
 	// Flags for bundle apply
 	bundleApplyCmd.Flags().StringVar(&bundlePreset, "preset", "", "Preset name to apply (required)")
+	bundleApplyCmd.Flags().StringVar(&bundleVersion, "version", "", "Bundle version/tag to apply for github-release sources")
 	bundleApplyCmd.Flags().StringVar(&bundleProjectRoot, "project-root", ".", "Project root directory")
 	bundleApplyCmd.Flags().StringVar(&bundleOutput, "output", "opencode.json", "Output file path")
 	bundleApplyCmd.Flags().BoolVar(&bundleForce, "force", false, "Overwrite existing files")
@@ -131,9 +135,12 @@ func runBundleApply(sourceID string) error {
 	if err != nil {
 		return fmt.Errorf("source not found: %s", sourceID)
 	}
+	if bundleVersion != "" && string(src.Type) != "github-release" {
+		return fmt.Errorf("--version is only supported for github-release sources")
+	}
 
 	// Resolve source to local bundle root
-	bundleRoot, cleanup, err := bundle.ResolveToLocal(string(src.Type), src.Location, "")
+	bundleRoot, cleanup, err := bundleResolveToLocal(string(src.Type), src.Location, bundleVersion)
 	if err != nil {
 		return fmt.Errorf("failed to resolve source: %w", err)
 	}

@@ -2,21 +2,32 @@
 package bundle
 
 import (
+	"crypto/sha256"
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/santhosh-tekuri/jsonschema/v5"
+	"github.com/sven1103-agent/opencode-config-cli/internal/source"
 )
 
 //go:embed 1.0.0.schema.json
 var embeddedSchema string
 
 var schemaCompiler *jsonschema.Compiler
+
+var (
+	githubHTTPClient       = http.DefaultClient
+	githubAPIBaseURL       = "https://api.github.com"
+	githubDownloadBaseURL  = "https://github.com"
+	githubCacheDirOverride string
+)
 
 func init() {
 	schemaCompiler = jsonschema.NewCompiler()
@@ -189,12 +200,236 @@ func ResolveToLocal(sourceType, sourceLocation, versionTag string) (string, func
 		return bundleRoot, cleanup, nil
 
 	case "github-release":
-		// For now, return an error - GitHub support would require network operations
-		return "", nil, fmt.Errorf("github-release sources require network operations (not yet implemented)")
+		bundleRoot, err := resolveGitHubReleaseToLocal(sourceLocation, versionTag)
+		if err != nil {
+			return "", nil, err
+		}
+		return bundleRoot, cleanup, nil
 
 	default:
 		return "", nil, fmt.Errorf("unknown source type: %s", sourceType)
 	}
+}
+
+type githubReleaseResponse struct {
+	TagName string               `json:"tag_name"`
+	Assets  []githubReleaseAsset `json:"assets"`
+}
+
+type githubReleaseAsset struct {
+	Name               string `json:"name"`
+	BrowserDownloadURL string `json:"browser_download_url"`
+}
+
+func resolveGitHubReleaseToLocal(sourceLocation, versionTag string) (string, error) {
+	ref, err := source.ParseGitHubLocation(sourceLocation)
+	if err != nil {
+		return "", err
+	}
+
+	tag := versionTag
+	if tag == "" {
+		tag = ref.Tag
+	}
+	if tag == "" {
+		tag = "latest"
+	}
+
+	release, err := fetchGitHubRelease(ref.Repo, tag)
+	if err != nil {
+		return "", err
+	}
+
+	archiveAsset, checksumsAsset := selectGitHubAssets(release)
+	if archiveAsset == nil {
+		return "", fmt.Errorf("no bundle asset (.tar.gz) found in release %s", release.TagName)
+	}
+
+	cacheDir, err := githubCacheDir()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create cache directory: %w", err)
+	}
+
+	cachedBase := filepath.Join(cacheDir, strings.ReplaceAll(ref.Repo, "/", "-")+"-"+release.TagName)
+	cachedTarball := cachedBase + ".tar.gz"
+	cachedExtract := cachedBase
+
+	if bundleRoot, err := cachedBundleRoot(cachedExtract); err == nil {
+		return bundleRoot, nil
+	}
+
+	if err := downloadToFile(archiveAsset.BrowserDownloadURL, cachedTarball); err != nil {
+		return "", err
+	}
+
+	if checksumsAsset != nil {
+		if err := verifyGitHubChecksum(cachedTarball, archiveAsset.Name, checksumsAsset.BrowserDownloadURL); err != nil {
+			_ = os.Remove(cachedTarball)
+			_ = os.RemoveAll(cachedExtract)
+			return "", err
+		}
+	}
+
+	_ = os.RemoveAll(cachedExtract)
+	if err := os.MkdirAll(cachedExtract, 0755); err != nil {
+		return "", fmt.Errorf("failed to create cache extract directory: %w", err)
+	}
+	if err := extractTarball(cachedTarball, cachedExtract); err != nil {
+		_ = os.Remove(cachedTarball)
+		_ = os.RemoveAll(cachedExtract)
+		return "", fmt.Errorf("failed to extract bundle: %w", err)
+	}
+
+	bundleRoot, err := findBundleRoot(cachedExtract)
+	if err != nil {
+		_ = os.Remove(cachedTarball)
+		_ = os.RemoveAll(cachedExtract)
+		return "", err
+	}
+	if _, err := os.Stat(filepath.Join(bundleRoot, "opencode-bundle.manifest.json")); err != nil {
+		_ = os.Remove(cachedTarball)
+		_ = os.RemoveAll(cachedExtract)
+		return "", fmt.Errorf("bundle manifest not found in downloaded archive")
+	}
+
+	return bundleRoot, nil
+}
+
+func githubCacheDir() (string, error) {
+	if githubCacheDirOverride != "" {
+		return githubCacheDirOverride, nil
+	}
+	cacheRoot, err := os.UserCacheDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to determine cache directory: %w", err)
+	}
+	return filepath.Join(cacheRoot, "opencode-helper", "github-releases"), nil
+}
+
+func cachedBundleRoot(cachedExtract string) (string, error) {
+	if _, err := os.Stat(cachedExtract); err != nil {
+		return "", err
+	}
+	return findBundleRoot(cachedExtract)
+}
+
+func fetchGitHubRelease(repo, tag string) (*githubReleaseResponse, error) {
+	apiBase := githubAPIBaseURL
+	if envBase := os.Getenv("OC_GITHUB_API_BASE_URL"); envBase != "" {
+		apiBase = envBase
+	}
+
+	path := "/repos/" + repo + "/releases/latest"
+	if tag != "latest" {
+		path = "/repos/" + repo + "/releases/tags/" + tag
+	}
+
+	resp, err := githubHTTPClient.Get(strings.TrimRight(apiBase, "/") + path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch release info from GitHub: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		msg := strings.TrimSpace(string(body))
+		if msg == "" {
+			msg = resp.Status
+		}
+		return nil, fmt.Errorf("GitHub API error: %s", msg)
+	}
+
+	var release githubReleaseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return nil, fmt.Errorf("failed to parse release response: %w", err)
+	}
+	if release.TagName == "" {
+		return nil, fmt.Errorf("failed to parse tag_name from release")
+	}
+	return &release, nil
+}
+
+func selectGitHubAssets(release *githubReleaseResponse) (*githubReleaseAsset, *githubReleaseAsset) {
+	var archiveAsset *githubReleaseAsset
+	var checksumsAsset *githubReleaseAsset
+	for i := range release.Assets {
+		asset := &release.Assets[i]
+		if archiveAsset == nil && strings.HasSuffix(asset.Name, ".tar.gz") {
+			archiveAsset = asset
+		}
+		if checksumsAsset == nil && strings.HasSuffix(asset.Name, "-checksums.txt") {
+			checksumsAsset = asset
+		}
+	}
+	return archiveAsset, checksumsAsset
+}
+
+func downloadToFile(url, dest string) error {
+	resp, err := githubHTTPClient.Get(url)
+	if err != nil {
+		return fmt.Errorf("failed to download bundle: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download bundle: %s", resp.Status)
+	}
+
+	file, err := os.Create(dest)
+	if err != nil {
+		return fmt.Errorf("failed to create cache file: %w", err)
+	}
+	defer file.Close()
+
+	if _, err := io.Copy(file, resp.Body); err != nil {
+		return fmt.Errorf("failed to write downloaded bundle: %w", err)
+	}
+	return nil
+}
+
+func verifyGitHubChecksum(archivePath, assetName, checksumsURL string) error {
+	resp, err := githubHTTPClient.Get(checksumsURL)
+	if err != nil {
+		return fmt.Errorf("failed to download checksums file: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download checksums file: %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read checksums file: %w", err)
+	}
+
+	var expected string
+	for _, line := range strings.Split(string(body), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 2 && fields[1] == assetName {
+			expected = fields[0]
+			break
+		}
+	}
+	if expected == "" {
+		return fmt.Errorf("checksums file missing entry for: %s", assetName)
+	}
+
+	data, err := os.ReadFile(archivePath)
+	if err != nil {
+		return fmt.Errorf("failed to read downloaded bundle: %w", err)
+	}
+	actual := sha256Hex(data)
+	if actual != expected {
+		return fmt.Errorf("bundle integrity check failed: SHA256 mismatch for %s", assetName)
+	}
+	return nil
+}
+
+func sha256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return fmt.Sprintf("%x", sum[:])
 }
 
 // extractTarball extracts a .tar.gz archive to the destination directory.
