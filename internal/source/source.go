@@ -4,8 +4,11 @@ package source
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,6 +40,14 @@ type Registry struct {
 	Version int      `json:"version"`
 	Sources []Source `json:"sources"`
 }
+
+// GitHubRef represents a normalized GitHub repository reference.
+type GitHubRef struct {
+	Repo string
+	Tag  string
+}
+
+var ownerRepoPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
 
 // RegistryPath returns the path to the source registry file.
 func RegistryPath() (string, error) {
@@ -97,6 +108,17 @@ func SaveRegistry(registry *Registry) error {
 
 // DetectSourceType detects the source type from a location path.
 func DetectSourceType(location string) (SourceType, error) {
+	if isGitHubRef(location) {
+		if _, err := parseGitHubRef(location); err != nil {
+			return "", err
+		}
+		return SourceTypeGitHubRelease, nil
+	}
+
+	if isArchivePath(location) {
+		return SourceTypeLocalArchive, nil
+	}
+
 	info, err := os.Stat(location)
 	if err != nil {
 		return "", fmt.Errorf("location does not exist: %s", location)
@@ -106,22 +128,15 @@ func DetectSourceType(location string) (SourceType, error) {
 		return SourceTypeLocalDirectory, nil
 	}
 
-	// Check for archive extensions
-	ext := filepath.Ext(location)
-	if ext == ".gz" || ext == ".tar" || location[len(location)-7:] == ".tar.gz" || location[len(location)-4:] == ".tgz" {
-		return SourceTypeLocalArchive, nil
-	}
-
-	// Check if it's a GitHub URL or reference
-	if isGitHubRef(location) {
-		return SourceTypeGitHubRelease, nil
-	}
-
 	return SourceTypeLocalArchive, nil
 }
 
 // isGitHubRef checks if a location appears to be a GitHub reference.
 func isGitHubRef(location string) bool {
+	if ownerRepoPattern.MatchString(location) && !strings.HasPrefix(location, "github.com/") {
+		return true
+	}
+
 	githubPrefixes := []string{
 		"https://github.com/",
 		"http://github.com/",
@@ -134,6 +149,64 @@ func isGitHubRef(location string) bool {
 		}
 	}
 	return false
+}
+
+func isArchivePath(location string) bool {
+	return strings.HasSuffix(location, ".tar.gz") || strings.HasSuffix(location, ".tgz") || strings.HasSuffix(location, ".tar") || strings.HasSuffix(location, ".gz")
+}
+
+// ParseGitHubLocation returns a normalized repository and optional pinned tag.
+func ParseGitHubLocation(location string) (GitHubRef, error) {
+	return parseGitHubRef(location)
+}
+
+func parseGitHubRef(location string) (GitHubRef, error) {
+	trimmed := strings.TrimSpace(location)
+	if trimmed == "" {
+		return GitHubRef{}, fmt.Errorf("invalid GitHub reference: location cannot be empty")
+	}
+
+	if ownerRepoPattern.MatchString(trimmed) && !strings.HasPrefix(trimmed, "github.com/") {
+		return GitHubRef{Repo: trimmed}, nil
+	}
+
+	if strings.HasPrefix(trimmed, "git@github.com:") {
+		trimmed = strings.TrimPrefix(trimmed, "git@github.com:")
+		trimmed = strings.TrimSuffix(trimmed, ".git")
+		if ownerRepoPattern.MatchString(trimmed) {
+			return GitHubRef{Repo: trimmed}, nil
+		}
+		return GitHubRef{}, fmt.Errorf("invalid GitHub reference: %s", location)
+	}
+
+	if strings.HasPrefix(trimmed, "github.com/") {
+		trimmed = "https://" + trimmed
+	}
+
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return GitHubRef{}, fmt.Errorf("invalid GitHub reference: %s", location)
+	}
+	if parsed.Host != "github.com" {
+		return GitHubRef{}, fmt.Errorf("invalid GitHub reference: %s", location)
+	}
+
+	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+		return GitHubRef{}, fmt.Errorf("invalid GitHub reference: %s", location)
+	}
+
+	repo := parts[0] + "/" + strings.TrimSuffix(parts[1], ".git")
+	if !ownerRepoPattern.MatchString(repo) {
+		return GitHubRef{}, fmt.Errorf("invalid GitHub reference: %s", location)
+	}
+
+	ref := GitHubRef{Repo: repo}
+	if len(parts) >= 5 && parts[2] == "releases" && parts[3] == "tag" && parts[4] != "" {
+		ref.Tag = parts[4]
+	}
+
+	return ref, nil
 }
 
 // ValidateSource validates that a source location is accessible.
@@ -161,10 +234,8 @@ func ValidateSource(location string, sourceType SourceType) error {
 			return fmt.Errorf("archive must be a file, not a directory: %s", location)
 		}
 	case SourceTypeGitHubRelease:
-		// GitHub sources are validated at bundle install time
-		// For now, just check it's not empty
-		if location == "" {
-			return fmt.Errorf("GitHub source location cannot be empty")
+		if _, err := parseGitHubRef(location); err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("unknown source type: %s", sourceType)
@@ -201,7 +272,15 @@ func AddSource(location string, name string) (*Source, error) {
 	// Generate ID if name not provided
 	id := uuid.New().String()[:8]
 	if name == "" {
-		name = filepath.Base(location)
+		if sourceType == SourceTypeGitHubRelease {
+			ref, err := parseGitHubRef(location)
+			if err != nil {
+				return nil, err
+			}
+			name = filepath.Base(ref.Repo)
+		} else {
+			name = filepath.Base(location)
+		}
 	}
 
 	// Create new source

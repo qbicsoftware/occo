@@ -2654,6 +2654,11 @@ Acceptance criteria:
 - Given a GitHub release source pointing at a valid bundle asset, when I register it, then the CLI records it as a GitHub-release source and can discover presets from its manifest.
 - Given that registered GitHub-release source, when I run `opencode-helper bundle apply <source-id> --version <tag> --preset <name> --project-root <path>`, then the CLI downloads or reuses the selected release asset, resolves it to a normalized bundle root, validates the manifest, and applies the preset.
 
+Notes:
+- The CLI accepts GitHub release sources as bare `owner/repo`, `github.com/owner/repo`, or a `https://github.com/<owner>/<repo>/releases/tag/<tag>` URL.
+- A valid GitHub release source must publish at least one bundle `.tar.gz` asset whose extracted contents contain `opencode-bundle.manifest.json` either at archive root or under a single top-level directory.
+- If the release also publishes a matching `-checksums.txt` asset, the CLI verifies the downloaded bundle before apply and fails closed on checksum mismatch.
+
 ---
 
 ### <a id="us-036"></a>US-036 - Self-update preserves legacy V1 setups
