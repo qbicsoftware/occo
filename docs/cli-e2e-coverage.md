@@ -47,17 +47,17 @@ It is the durable inventory for what is already covered, what is verified in CI,
 
 | Scenario | Command(s) | Source Type | Status | CI Verified | Notes |
 |---|---|---|---|---|---|
-| Print version | `oc version` | n/a | Implemented | Yes | Verified by successful `main` workflow matrix run on Linux and macOS |
-| Register local directory source | `oc source add <dir>` | local directory | Implemented | Yes | Uses fixture bundle with manifest |
-| Register local archive source | `oc source add <tar.gz>` | local archive | Implemented | Yes | Archive generated at test runtime |
-| List registered sources | `oc source list` | registry | Implemented | Yes | Covered inside the local directory flow |
-| Apply preset from local directory source | `oc bundle apply <id> --preset <name>` | local directory | Implemented | Yes | Verifies written config and provenance |
-| Apply preset from local archive source | `oc bundle apply <id> --preset <name>` | local archive | Implemented | Yes | Exercises tar extraction path |
-| Show applied bundle provenance | `oc bundle status --project-root <dir>` | project provenance | Implemented | Yes | Reads `.opencode/bundle-provenance.json` through CLI |
-| Refuse overwrite without force | `oc bundle apply <id> --preset <name>` | local directory | Implemented | Yes | Must fail when output already exists |
-| Reject missing manifest source | `oc source add <dir>` | invalid local directory | Implemented | Yes | Validates manifest presence check |
-| Reject invalid tarball | `oc source add <tar.gz>` and/or `oc bundle apply <id> --preset <name>` | invalid local archive | Implemented | Yes | Verifies archive extraction failure path |
-| Reject unknown source ID | `oc bundle apply <id> --preset <name>` | registry lookup | Implemented | Yes | Verifies user-facing error path |
+| Print version | `oc version` | n/a | Implemented | ✅ | Verified by successful `main` workflow matrix run on Linux and macOS |
+| Register local directory source | `oc source add <dir>` | local directory | Implemented | ✅ | Uses fixture bundle with manifest |
+| Register local archive source | `oc source add <tar.gz>` | local archive | Implemented | ✅ | Archive generated at test runtime |
+| List registered sources | `oc source list` | registry | Implemented | ✅ | Covered inside the local directory flow |
+| Apply preset from local directory source | `oc bundle apply <id> --preset <name>` | local directory | Implemented | ✅ | Verifies written config and provenance |
+| Apply preset from local archive source | `oc bundle apply <id> --preset <name>` | local archive | Implemented | ✅ | Exercises tar extraction path |
+| Show applied bundle provenance | `oc bundle status --project-root <dir>` | project provenance | Implemented | ✅ | Reads `.opencode/bundle-provenance.json` through CLI |
+| Refuse overwrite without force | `oc bundle apply <id> --preset <name>` | local directory | Implemented | ✅ | Must fail when output already exists |
+| Reject missing manifest source | `oc source add <dir>` | invalid local directory | Implemented | ✅ | Validates manifest presence check |
+| Reject invalid tarball | `oc source add <tar.gz>` and/or `oc bundle apply <id> --preset <name>` | invalid local archive | Implemented | ✅ | Verifies archive extraction failure path |
+| Reject unknown source ID | `oc bundle apply <id> --preset <name>` | registry lookup | Implemented | ✅ | Verifies user-facing error path |
 
 ## Deferred Scenarios
 
