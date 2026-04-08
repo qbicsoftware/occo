@@ -9,8 +9,8 @@ A CLI tool (`oc`) that manages OpenCode configuration bundles from external sour
 ## Quick Start (30 seconds)
 
 ```sh
-# Install (macOS/Linux)
-curl -fsSL https://github.com/sven1103-agent/opencode-config-cli/releases/latest/download/install.sh | sh
+# Install via Go (macOS/Linux)
+go install github.com/sven1103-agent/opencode-config-cli@latest
 
 # Register a config bundle
 oc source add qbicsoftware/opencode-config-bundle --name qbic
@@ -24,9 +24,8 @@ oc bundle apply qbic --preset mixed --project-root .
 Detailed installation guide: [docs/installation.md](docs/installation.md)
 
 Install methods:
-- Installer script (recommended)
-- `go install`
-- Manual download
+- `go install` (recommended)
+- Manual download from GitHub Releases
 
 ## Key Concepts
 

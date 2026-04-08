@@ -5,35 +5,12 @@ This guide covers how to install the OpenCode Config CLI (`oc`) on macOS and Lin
 ## Prerequisites
 
 - A Unix-like operating system (macOS or Linux)
-- `curl` or `wget` for downloading
-- `tar` for extracting archives
 - Go 1.21+ (for `go install` method)
+- `curl` and `tar` (for manual download)
 
 ## Install Methods
 
-### Method 1: Installer Script (Recommended)
-
-```sh
-curl -fsSL https://github.com/sven1103-agent/opencode-config-cli/releases/latest/download/install.sh | sh
-```
-
-This downloads and runs the installer, which places the `oc` binary in `~/.local/bin/`.
-
-**Add to PATH:**
-
-```sh
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-To make this permanent, add the line above to your shell profile (`~/.zshrc` or `~/.bashrc`).
-
-**Custom install directory:**
-
-```sh
-curl -fsSL https://github.com/sven1103-agent/opencode-config-cli/releases/latest/download/install.sh | sh -s -- --bin-dir "$HOME/bin"
-```
-
-### Method 2: Go Install
+### Method 1: Go Install (Recommended)
 
 If you have Go installed:
 
@@ -41,7 +18,7 @@ If you have Go installed:
 go install github.com/sven1103-agent/opencode-config-cli@latest
 ```
 
-This installs the `oc` binary to `$GOPATH/bin` (or `$HOME/go/bin`).
+This installs the `oc` binary to `$GOPATH/bin` (or `$HOME/go/bin`). Make sure this directory is in your PATH.
 
 **Note:** `@latest` follows Go module version selection. It does not mean "latest GitHub prerelease".
 
@@ -51,7 +28,7 @@ This installs the `oc` binary to `$GOPATH/bin` (or `$HOME/go/bin`).
 go install github.com/sven1103-agent/opencode-config-cli@v1.0.0-alpha.4
 ```
 
-### Method 3: Manual Download
+### Method 2: Manual Download
 
 Download the correct tarball for your platform from [GitHub Releases](https://github.com/sven1103-agent/opencode-config-cli/releases):
 
@@ -68,6 +45,14 @@ mv oc ~/.local/bin/
 - `linux_amd64` — Linux x86_64
 - `linux_arm64` — Linux ARM64
 
+**Add to PATH:**
+
+```sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+To make this permanent, add the line above to your shell profile (`~/.zshrc` or `~/.bashrc`).
+
 ## Verify Installation
 
 ```sh
@@ -76,33 +61,27 @@ oc version
 
 You should see output like `oc version 1.0.0-alpha.4`.
 
-## Version Pinning
+## PATH Issues
 
-### With installer script:
+If you see "command not found: oc" after installation:
 
-```sh
-curl -fsSL https://github.com/sven1103-agent/opencode-config-cli/releases/latest/download/install.sh | sh -s -- --version v1.0.0-alpha.4
-```
-
-Or via environment variable:
+1. **For go install**: Ensure `$HOME/go/bin` is in your PATH
+2. **For manual download**: Ensure `~/.local/bin` is in your PATH
 
 ```sh
-OPENCODE_HELPER_VERSION=v1.0.0-alpha.4 sh -c 'curl -fsSL https://github.com/sven1103-agent/opencode-config-cli/releases/latest/download/install.sh | sh'
+# Add to ~/.zshrc or ~/.bashrc
+export PATH="$HOME/go/bin:$HOME/.local/bin:$PATH"
 ```
 
 ## Upgrading
 
-Re-run the installer to upgrade to the latest version:
-
-```sh
-curl -fsSL https://github.com/sven1103-agent/opencode-config-cli/releases/latest/download/install.sh | sh
-```
-
-Or use `go install` with the desired version:
+Re-run `go install` with the desired version:
 
 ```sh
 go install github.com/sven1103-agent/opencode-config-cli@latest
 ```
+
+Or download a new release manually from [GitHub Releases](https://github.com/sven1103-agent/opencode-config-cli/releases).
 
 ## Next Steps
 

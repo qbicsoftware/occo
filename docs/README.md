@@ -21,8 +21,8 @@ Welcome to the OpenCode Config CLI documentation. This CLI manages OpenCode conf
 ## Getting Started
 
 ```sh
-# Install the CLI
-curl -fsSL https://github.com/sven1103-agent/opencode-config-cli/releases/latest/download/install.sh | sh
+# Install via Go
+go install github.com/sven1103-agent/opencode-config-cli@latest
 
 # Register a config bundle
 oc source add qbicsoftware/opencode-config-bundle --name qbic

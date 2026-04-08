@@ -16,22 +16,6 @@ export PATH="$HOME/.local/bin:$PATH"
 
 To make this permanent, add the line above to your shell profile (`~/.zshrc` or `~/.bashrc`).
 
-### "install.sh not found"
-
-The installer script is not available in the release.
-
-**Solution:** Use an alternative install method:
-
-```sh
-# Method 1: Go install
-go install github.com/sven1103-agent/opencode-config-cli@latest
-
-# Method 2: Manual download
-VERSION=v1.0.0-alpha.4
-curl -L "https://github.com/sven1103-agent/opencode-config-cli/releases/download/${VERSION}/oc_${VERSION#v}_darwin_arm64.tar.gz" | tar xz
-mv oc ~/.local/bin/
-```
-
 ## Bundle Operations
 
 ### "source not found"
