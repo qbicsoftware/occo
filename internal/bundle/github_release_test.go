@@ -14,6 +14,85 @@ import (
 )
 
 func TestResolveToLocal_GitHubRelease(t *testing.T) {
+	t.Run("resolves latest stable release when prereleases also exist", func(t *testing.T) {
+		archiveBytes := buildBundleArchive(t, archiveFixture{tag: "v1.2.3", bundleVersion: "v1.2.3", presetName: "mixed"})
+		checksum := sha256Hex(archiveBytes)
+
+		server := newGitHubReleaseTestServer(t, githubReleaseServerFixture{
+			repo:         "qbicsoftware/opencode-config-bundle",
+			tag:          "v1.2.3",
+			archiveBytes: archiveBytes,
+			checksums:    fmt.Sprintf("%s  opencode-config-bundle-v1.2.3.tar.gz\n", checksum),
+			releases:     []githubReleaseFixture{{Tag: "v1.3.0-alpha.1", Prerelease: true}, {Tag: "v1.2.3", Prerelease: false}},
+		})
+		defer server.Close()
+
+		oldClient := githubHTTPClient
+		oldAPIBaseURL := githubAPIBaseURL
+		oldDownloadBaseURL := githubDownloadBaseURL
+		oldCacheDir := githubCacheDirOverride
+		githubHTTPClient = server.Client()
+		githubAPIBaseURL = server.URL
+		githubDownloadBaseURL = server.URL
+		githubCacheDirOverride = t.TempDir()
+		defer func() {
+			githubHTTPClient = oldClient
+			githubAPIBaseURL = oldAPIBaseURL
+			githubDownloadBaseURL = oldDownloadBaseURL
+			githubCacheDirOverride = oldCacheDir
+		}()
+
+		bundleRoot, cleanup, err := ResolveToLocal("github-release", "qbicsoftware/opencode-config-bundle", "latest")
+		if err != nil {
+			t.Fatalf("ResolveToLocal() error = %v", err)
+		}
+		defer cleanup()
+
+		manifestPath := filepath.Join(bundleRoot, "opencode-bundle.manifest.json")
+		manifestBytes, err := os.ReadFile(manifestPath)
+		if err != nil {
+			t.Fatalf("expected manifest at %s: %v", manifestPath, err)
+		}
+		if !strings.Contains(string(manifestBytes), `"bundle_version": "v1.2.3"`) {
+			t.Fatalf("manifest = %s", manifestBytes)
+		}
+	})
+
+	t.Run("latest reports prerelease-only repositories clearly", func(t *testing.T) {
+		server := newGitHubReleaseTestServer(t, githubReleaseServerFixture{
+			repo:     "qbicsoftware/opencode-config-bundle",
+			tag:      "v1.3.0-alpha.1",
+			releases: []githubReleaseFixture{{Tag: "v1.3.0-alpha.1", Prerelease: true}},
+		})
+		defer server.Close()
+
+		oldClient := githubHTTPClient
+		oldAPIBaseURL := githubAPIBaseURL
+		oldDownloadBaseURL := githubDownloadBaseURL
+		oldCacheDir := githubCacheDirOverride
+		githubHTTPClient = server.Client()
+		githubAPIBaseURL = server.URL
+		githubDownloadBaseURL = server.URL
+		githubCacheDirOverride = t.TempDir()
+		defer func() {
+			githubHTTPClient = oldClient
+			githubAPIBaseURL = oldAPIBaseURL
+			githubDownloadBaseURL = oldDownloadBaseURL
+			githubCacheDirOverride = oldCacheDir
+		}()
+
+		_, cleanup, err := ResolveToLocal("github-release", "qbicsoftware/opencode-config-bundle", "latest")
+		if cleanup != nil {
+			defer cleanup()
+		}
+		if err == nil {
+			t.Fatal("ResolveToLocal() error = nil, want prerelease-only failure")
+		}
+		if !strings.Contains(err.Error(), "prereleases are available") {
+			t.Fatalf("ResolveToLocal() error = %v", err)
+		}
+	})
+
 	t.Run("resolves tagged release and verifies checksum", func(t *testing.T) {
 		archiveBytes := buildBundleArchive(t, archiveFixture{tag: "v1.2.3", bundleVersion: "v1.2.3", presetName: "mixed"})
 		checksum := sha256Hex(archiveBytes)
@@ -127,6 +206,38 @@ func TestResolveToLocal_GitHubRelease(t *testing.T) {
 	})
 }
 
+func TestListGitHubReleases(t *testing.T) {
+	server := newGitHubReleaseTestServer(t, githubReleaseServerFixture{
+		repo:     "qbicsoftware/opencode-config-bundle",
+		tag:      "v1.2.3",
+		releases: []githubReleaseFixture{{Tag: "v1.3.0-alpha.1", Prerelease: true}, {Tag: "v1.2.3", Prerelease: false}},
+	})
+	defer server.Close()
+
+	oldClient := githubHTTPClient
+	oldAPIBaseURL := githubAPIBaseURL
+	githubHTTPClient = server.Client()
+	githubAPIBaseURL = server.URL
+	defer func() {
+		githubHTTPClient = oldClient
+		githubAPIBaseURL = oldAPIBaseURL
+	}()
+
+	releases, err := ListGitHubReleases("qbicsoftware/opencode-config-bundle")
+	if err != nil {
+		t.Fatalf("ListGitHubReleases() error = %v", err)
+	}
+	if len(releases) != 2 {
+		t.Fatalf("len(releases) = %d, want 2", len(releases))
+	}
+	if releases[0].TagName != "v1.3.0-alpha.1" || !releases[0].Prerelease {
+		t.Fatalf("releases[0] = %+v", releases[0])
+	}
+	if releases[1].TagName != "v1.2.3" || releases[1].Prerelease {
+		t.Fatalf("releases[1] = %+v", releases[1])
+	}
+}
+
 type archiveFixture struct {
 	tag           string
 	bundleVersion string
@@ -176,6 +287,12 @@ type githubReleaseServerFixture struct {
 	tag          string
 	archiveBytes []byte
 	checksums    string
+	releases     []githubReleaseFixture
+}
+
+type githubReleaseFixture struct {
+	Tag        string
+	Prerelease bool
 }
 
 func newGitHubReleaseTestServer(t *testing.T, fixture githubReleaseServerFixture) *httptest.Server {
@@ -183,6 +300,10 @@ func newGitHubReleaseTestServer(t *testing.T, fixture githubReleaseServerFixture
 
 	archiveName := fmt.Sprintf("opencode-config-bundle-%s.tar.gz", fixture.tag)
 	handler := http.NewServeMux()
+	handler.HandleFunc("/repos/"+fixture.repo+"/releases", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(buildReleasesJSON(fixture)))
+	})
 
 	handler.HandleFunc("/repos/"+fixture.repo+"/releases/tags/"+fixture.tag, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -214,11 +335,12 @@ func newGitHubReleaseTestServer(t *testing.T, fixture githubReleaseServerFixture
 
 func buildReleaseJSON(baseURL string, fixture githubReleaseServerFixture, archiveName string) string {
 	if len(fixture.archiveBytes) == 0 {
-		return fmt.Sprintf(`{"tag_name":%q,"assets":[]}`, fixture.tag)
+		return fmt.Sprintf(`{"tag_name":%q,"prerelease":false,"assets":[]}`, fixture.tag)
 	}
 
 	return fmt.Sprintf(`{
 		"tag_name": %q,
+		"prerelease": false,
 		"assets": [
 			{"name": %q, "browser_download_url": %q},
 			{"name": %q, "browser_download_url": %q}
@@ -230,4 +352,19 @@ func buildReleaseJSON(baseURL string, fixture githubReleaseServerFixture, archiv
 		"opencode-config-bundle-"+fixture.tag+"-checksums.txt",
 		fmt.Sprintf("%s/downloads/%s/releases/download/%s/%s", baseURL, fixture.repo, fixture.tag, "opencode-config-bundle-"+fixture.tag+"-checksums.txt"),
 	)
+}
+
+func buildReleasesJSON(fixture githubReleaseServerFixture) string {
+	releases := fixture.releases
+	if len(releases) == 0 {
+		releases = []githubReleaseFixture{{Tag: fixture.tag}}
+	}
+
+	parts := make([]string, 0, len(releases))
+	for _, release := range releases {
+		archiveName := fmt.Sprintf("opencode-config-bundle-%s.tar.gz", release.Tag)
+		assetJSON := fmt.Sprintf(`[{"name":%q,"browser_download_url":%q}]`, archiveName, fmt.Sprintf("http://example.invalid/downloads/%s/releases/download/%s/%s", fixture.repo, release.Tag, archiveName))
+		parts = append(parts, fmt.Sprintf(`{"tag_name":%q,"prerelease":%t,"assets":%s}`, release.Tag, release.Prerelease, assetJSON))
+	}
+	return "[" + strings.Join(parts, ",") + "]"
 }

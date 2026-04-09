@@ -104,7 +104,16 @@ func runSourcePresetList() error {
 
 	foundPreset := false
 	for _, src := range sources {
-		bundleRoot, cleanup, err := presetResolveToLocal(string(src.Type), src.Location, "")
+		versionTag := ""
+		if string(src.Type) == "github-release" {
+			versionTag, err = resolveGitHubBundleVersion(src.Location, "")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to inspect source %s (%s): %v\n", src.Name, src.ID, err)
+				continue
+			}
+		}
+
+		bundleRoot, cleanup, err := presetResolveToLocal(string(src.Type), src.Location, versionTag)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "warning: failed to inspect source %s (%s): %v\n", src.Name, src.ID, err)
 			continue
