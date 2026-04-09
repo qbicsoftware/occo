@@ -1389,7 +1389,7 @@ Status:
 
 PR:
 - [#141](https://github.com/sven1103-agent/opencode-config-cli/pull/141)
-- TBD
+- [#142](https://github.com/sven1103-agent/opencode-config-cli/pull/142)
 
 Type:
 - User-facing
