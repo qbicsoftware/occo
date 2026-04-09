@@ -212,13 +212,20 @@ func ResolveToLocal(sourceType, sourceLocation, versionTag string) (string, func
 }
 
 type githubReleaseResponse struct {
-	TagName string               `json:"tag_name"`
-	Assets  []githubReleaseAsset `json:"assets"`
+	TagName    string               `json:"tag_name"`
+	Prerelease bool                 `json:"prerelease"`
+	Assets     []githubReleaseAsset `json:"assets"`
 }
 
 type githubReleaseAsset struct {
 	Name               string `json:"name"`
 	BrowserDownloadURL string `json:"browser_download_url"`
+}
+
+// GitHubReleaseVersion describes a GitHub release version available for a bundle source.
+type GitHubReleaseVersion struct {
+	TagName    string
+	Prerelease bool
 }
 
 func resolveGitHubReleaseToLocal(sourceLocation, versionTag string) (string, error) {
@@ -232,7 +239,7 @@ func resolveGitHubReleaseToLocal(sourceLocation, versionTag string) (string, err
 		tag = ref.Tag
 	}
 	if tag == "" {
-		tag = "latest"
+		return "", fmt.Errorf("--version is required for github-release sources outside interactive mode (use --version latest or --version <tag>)")
 	}
 
 	release, err := fetchGitHubRelease(ref.Repo, tag)
@@ -316,15 +323,96 @@ func cachedBundleRoot(cachedExtract string) (string, error) {
 	return findBundleRoot(cachedExtract)
 }
 
+// ListGitHubReleases returns usable GitHub bundle releases for a source location.
+func ListGitHubReleases(sourceLocation string) ([]GitHubReleaseVersion, error) {
+	ref, err := source.ParseGitHubLocation(sourceLocation)
+	if err != nil {
+		return nil, err
+	}
+
+	releases, err := fetchGitHubReleases(ref.Repo)
+	if err != nil {
+		return nil, err
+	}
+
+	versions := make([]GitHubReleaseVersion, 0, len(releases))
+	for _, release := range releases {
+		if archiveAsset, _ := selectGitHubAssets(release); archiveAsset == nil {
+			continue
+		}
+		versions = append(versions, GitHubReleaseVersion{TagName: release.TagName, Prerelease: release.Prerelease})
+	}
+
+	if len(versions) == 0 {
+		return nil, fmt.Errorf("no usable bundle releases found for %s", ref.Repo)
+	}
+
+	return versions, nil
+}
+
 func fetchGitHubRelease(repo, tag string) (*githubReleaseResponse, error) {
+	if tag == "latest" {
+		releases, err := fetchGitHubReleases(repo)
+		if err != nil {
+			return nil, err
+		}
+
+		var sawPrerelease bool
+		for _, release := range releases {
+			if release.Prerelease {
+				sawPrerelease = true
+				continue
+			}
+			return fetchGitHubReleaseFromPath("/repos/" + repo + "/releases/tags/" + release.TagName)
+		}
+
+		if sawPrerelease {
+			return nil, fmt.Errorf("no stable release found for %s; prereleases are available (use --version <tag>)", repo)
+		}
+		return nil, fmt.Errorf("no releases found for %s", repo)
+	}
+
+	path := "/repos/" + repo + "/releases/tags/" + tag
+	return fetchGitHubReleaseFromPath(path)
+}
+
+func fetchGitHubReleases(repo string) ([]*githubReleaseResponse, error) {
+	path := "/repos/" + repo + "/releases?per_page=100"
+	body, err := fetchGitHubReleaseBody(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var releases []*githubReleaseResponse
+	if err := json.Unmarshal(body, &releases); err != nil {
+		return nil, fmt.Errorf("failed to parse releases response: %w", err)
+	}
+	if len(releases) == 0 {
+		return nil, fmt.Errorf("no releases found for %s", repo)
+	}
+	return releases, nil
+}
+
+func fetchGitHubReleaseFromPath(path string) (*githubReleaseResponse, error) {
+	body, err := fetchGitHubReleaseBody(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var release githubReleaseResponse
+	if err := json.Unmarshal(body, &release); err != nil {
+		return nil, fmt.Errorf("failed to parse release response: %w", err)
+	}
+	if release.TagName == "" {
+		return nil, fmt.Errorf("failed to parse tag_name from release")
+	}
+	return &release, nil
+}
+
+func fetchGitHubReleaseBody(path string) ([]byte, error) {
 	apiBase := githubAPIBaseURL
 	if envBase := os.Getenv("OC_GITHUB_API_BASE_URL"); envBase != "" {
 		apiBase = envBase
-	}
-
-	path := "/repos/" + repo + "/releases/latest"
-	if tag != "latest" {
-		path = "/repos/" + repo + "/releases/tags/" + tag
 	}
 
 	resp, err := githubHTTPClient.Get(strings.TrimRight(apiBase, "/") + path)
@@ -342,14 +430,11 @@ func fetchGitHubRelease(repo, tag string) (*githubReleaseResponse, error) {
 		return nil, fmt.Errorf("GitHub API error: %s", msg)
 	}
 
-	var release githubReleaseResponse
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return nil, fmt.Errorf("failed to parse release response: %w", err)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read release response: %w", err)
 	}
-	if release.TagName == "" {
-		return nil, fmt.Errorf("failed to parse tag_name from release")
-	}
-	return &release, nil
+	return body, nil
 }
 
 func selectGitHubAssets(release *githubReleaseResponse) (*githubReleaseAsset, *githubReleaseAsset) {

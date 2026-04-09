@@ -16,18 +16,19 @@ import (
 )
 
 var (
-	bundleProjectRoot    string
-	bundlePreset         string
-	bundleVersion        string
-	bundleAuto           bool
-	bundleForce          bool
-	bundleDryRun         bool
-	bundleOutput         string
-	bundleYes            bool
-	bundleResolveToLocal           = bundle.ResolveToLocal
-	bundlePromptIn       io.Reader = os.Stdin
-	bundlePromptOut      io.Writer = os.Stdout
-	bundleInputIsTTY               = isInteractiveTTY
+	bundleProjectRoot        string
+	bundlePreset             string
+	bundleVersion            string
+	bundleAuto               bool
+	bundleForce              bool
+	bundleDryRun             bool
+	bundleOutput             string
+	bundleYes                bool
+	bundleResolveToLocal               = bundle.ResolveToLocal
+	bundleListGitHubReleases           = bundle.ListGitHubReleases
+	bundlePromptIn           io.Reader = os.Stdin
+	bundlePromptOut          io.Writer = os.Stdout
+	bundleInputIsTTY                   = isInteractiveTTY
 )
 
 // bundleCmd represents the bundle command
@@ -143,12 +144,19 @@ func runBundleApply(sourceRef string) error {
 	if err != nil {
 		return err
 	}
+	selectedVersion := bundleVersion
+	if string(src.Type) == "github-release" {
+		selectedVersion, err = resolveGitHubBundleVersion(src.Location, bundleVersion, true)
+		if err != nil {
+			return err
+		}
+	}
 	if bundleVersion != "" && string(src.Type) != "github-release" {
 		return fmt.Errorf("--version is only supported for github-release sources")
 	}
 
 	// Resolve source to local bundle root
-	bundleRoot, cleanup, err := bundleResolveToLocal(string(src.Type), src.Location, bundleVersion)
+	bundleRoot, cleanup, err := bundleResolveToLocal(string(src.Type), src.Location, selectedVersion)
 	if err != nil {
 		return fmt.Errorf("failed to resolve source: %w", err)
 	}
@@ -226,6 +234,63 @@ func runBundleApply(sourceRef string) error {
 	return nil
 }
 
+func resolveGitHubBundleVersion(sourceLocation, requestedVersion string, allowPrompt bool) (string, error) {
+	if requestedVersion != "" {
+		return requestedVersion, nil
+	}
+
+	ref, err := source.ParseGitHubLocation(sourceLocation)
+	if err != nil {
+		return "", err
+	}
+	if ref.Tag != "" {
+		return ref.Tag, nil
+	}
+
+	releases, err := bundleListGitHubReleases(sourceLocation)
+	if err != nil {
+		return "", err
+	}
+	if !allowPrompt || bundleAuto || !bundleInputIsTTY() {
+		if hasStableGitHubRelease(releases) {
+			return "", fmt.Errorf("--version is required for github-release sources outside interactive mode (use --version latest or --version <tag>)")
+		}
+		return "", fmt.Errorf("--version is required for github-release sources outside interactive mode; only prereleases are available (use --version <tag>)")
+	}
+
+	if len(releases) == 1 {
+		return releases[0].TagName, nil
+	}
+
+	return promptForGitHubReleaseSelection(sourceLocation, releases)
+}
+
+func inspectGitHubBundleVersion(sourceLocation, requestedVersion string) (string, error) {
+	if requestedVersion != "" {
+		return requestedVersion, nil
+	}
+
+	ref, err := source.ParseGitHubLocation(sourceLocation)
+	if err != nil {
+		return "", err
+	}
+	if ref.Tag != "" {
+		return ref.Tag, nil
+	}
+
+	releases, err := bundleListGitHubReleases(sourceLocation)
+	if err != nil {
+		return "", err
+	}
+	for _, release := range releases {
+		if !release.Prerelease {
+			return release.TagName, nil
+		}
+	}
+
+	return "", fmt.Errorf("no stable release found for %s; prereleases are available", ref.Repo)
+}
+
 func promptForPresetSelection(manifest *bundle.Manifest) (string, error) {
 	if len(manifest.Presets) == 0 {
 		return "", fmt.Errorf("bundle has no presets to select")
@@ -266,6 +331,57 @@ func promptForPresetSelection(manifest *bundle.Manifest) (string, error) {
 
 		fmt.Fprintln(bundlePromptOut, "Invalid selection. Please enter a preset number or exact name.")
 	}
+}
+
+func promptForGitHubReleaseSelection(sourceLocation string, releases []bundle.GitHubReleaseVersion) (string, error) {
+	if len(releases) == 0 {
+		return "", fmt.Errorf("github-release source has no versions to select")
+	}
+
+	reader := bufio.NewReader(bundlePromptIn)
+	for {
+		fmt.Fprintf(bundlePromptOut, "Available versions for %s:\n", sourceLocation)
+		for i, release := range releases {
+			label := release.TagName
+			if release.Prerelease {
+				label += " (prerelease)"
+			}
+			fmt.Fprintf(bundlePromptOut, "  %d) %s\n", i+1, label)
+		}
+		fmt.Fprint(bundlePromptOut, "Select a version: ")
+
+		selection, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				return "", fmt.Errorf("interactive version selection cancelled")
+			}
+			return "", fmt.Errorf("failed to read version selection: %w", err)
+		}
+
+		selection = strings.TrimSpace(selection)
+		for _, release := range releases {
+			if release.TagName == selection {
+				return release.TagName, nil
+			}
+		}
+
+		if index, err := strconv.Atoi(selection); err == nil {
+			if index >= 1 && index <= len(releases) {
+				return releases[index-1].TagName, nil
+			}
+		}
+
+		fmt.Fprintln(bundlePromptOut, "Invalid selection. Please enter a version number or exact tag.")
+	}
+}
+
+func hasStableGitHubRelease(releases []bundle.GitHubReleaseVersion) bool {
+	for _, release := range releases {
+		if !release.Prerelease {
+			return true
+		}
+	}
+	return false
 }
 
 func isInteractiveTTY() bool {
@@ -313,6 +429,12 @@ func completeBundlePresetNames(cmd *cobra.Command, args []string, toComplete str
 	versionTag := ""
 	if flag := cmd.Flags().Lookup("version"); flag != nil {
 		versionTag = flag.Value.String()
+	}
+	if string(src.Type) == "github-release" {
+		versionTag, err = inspectGitHubBundleVersion(src.Location, versionTag)
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
 	}
 
 	bundleRoot, cleanup, err := bundleResolveToLocal(string(src.Type), src.Location, versionTag)
