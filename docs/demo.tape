@@ -29,11 +29,16 @@ Type "oc source add qbicsoftware/opencode-config-bundle --name qbic"
 Enter
 Sleep 1.2s
 
-Type "oc source list"
+Type "oc bundle apply --project-root demo-project"
 Enter
-Sleep 1.2s
-
-Type "oc bundle apply qbic --preset mixed --project-root demo-project"
+Sleep 800ms
+Type "1"
+Enter
+Sleep 800ms
+Type "1"
+Enter
+Sleep 800ms
+Type "mixed"
 Enter
 Sleep 1.5s
 

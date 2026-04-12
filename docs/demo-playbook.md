@@ -7,8 +7,8 @@ Repeat this playbook when recording a short terminal demo for the repository lan
 Show that `oc` can:
 
 - register a configuration bundle source
-- inspect the registered source list
-- apply a preset into a project
+- guide the user through interactive source, version, and preset selection
+- apply a selected preset into a project
 - show provenance for the applied bundle
 
 ## Demo Shape
@@ -26,8 +26,10 @@ Run the demo in a clean temporary directory so the output stays predictable.
 mkdir -p demo-project
 oc --version
 oc source add qbicsoftware/opencode-config-bundle --name qbic
-oc source list
-oc bundle apply qbic --preset mixed --project-root demo-project
+oc bundle apply --project-root demo-project
+# select source 1
+# select version 1
+# type preset name: mixed
 oc bundle status --project-root demo-project
 ls demo-project
 ```
@@ -47,10 +49,12 @@ Use this sequence when recording:
 
 1. Show the installed CLI version.
 2. Register the official bundle source as `qbic`.
-3. Show that the source is now available in the local registry.
-4. Apply the `mixed` preset into `demo-project`.
-5. Show bundle provenance for the generated project config.
-6. End by showing that `opencode.json` exists in the project directory.
+3. Start `oc bundle apply` without a source argument to trigger interactive selection.
+4. Select the registered source.
+5. Select a bundle version.
+6. Show the preset list and choose `mixed` by name so viewers can see where the preset comes from.
+7. Show bundle provenance for the generated project config.
+8. End by showing that `opencode.json` exists in the project directory.
 
 ## Environment Prep
 
