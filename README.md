@@ -36,6 +36,29 @@ Install methods:
 - `go install` (recommended)
 - Manual download from GitHub Releases
 
+## Shell Completion
+
+Enable tab completion for your shell:
+
+```sh
+# Bash: source on the fly, or install permanently
+source <(oc completion bash)
+oc completion bash | sudo tee /etc/bash_completion.d/oc > /dev/null
+
+# Zsh: source on the fly (recommended)
+source <(oc completion zsh)
+
+# Or save to completions dir (may require sourcing after compinit):
+# oc completion zsh > ~/.zsh/completions/_oc
+# Add to ~/.zshrc: fpath=(~/.zsh/completions $fpath)
+# Clear cache and restart: rm -f ~/.zcompdump && exec zsh
+
+# Fish
+oc completion fish > ~/.config/fish/completions/oc.fish
+```
+
+Run `oc completion --help` for full instructions.
+
 ## Key Concepts
 
 | Concept | Description |
