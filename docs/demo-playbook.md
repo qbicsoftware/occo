@@ -29,7 +29,7 @@ oc source add qbicsoftware/opencode-config-bundle --name qbic
 oc bundle apply --project-root demo-project
 # select source 1
 # select version 1
-# type preset name: mixed
+# select preset 1 after the preset list is shown
 oc bundle status --project-root demo-project
 ls demo-project
 ```
@@ -52,7 +52,7 @@ Use this sequence when recording:
 3. Start `oc bundle apply` without a source argument to trigger interactive selection.
 4. Select the registered source.
 5. Select a bundle version.
-6. Show the preset list and choose `mixed` by name so viewers can see where the preset comes from.
+6. Show the preset list and choose one entry from the list so viewers can see where the preset comes from.
 7. Show bundle provenance for the generated project config.
 8. End by showing that `opencode.json` exists in the project directory.
 

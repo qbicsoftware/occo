@@ -1,9 +1,9 @@
 Output docs/demo.gif
 
 Set Shell "zsh"
-Set FontSize 28
-Set Width 1100
-Set Height 680
+Set FontSize 22
+Set Width 1400
+Set Height 760
 Set Padding 18
 Set BorderRadius 8
 Set WindowBar Colorful
@@ -37,8 +37,8 @@ Enter
 Sleep 800ms
 Type "1"
 Enter
-Sleep 800ms
-Type "mixed"
+Sleep 2200ms
+Type "1"
 Enter
 Sleep 1.5s
 
