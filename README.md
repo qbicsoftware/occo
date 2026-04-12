@@ -36,6 +36,32 @@ Install methods:
 - `go install` (recommended)
 - Manual download from GitHub Releases
 
+## Shell Completion
+
+Enable tab completion for your shell:
+
+```sh
+# Bash: source on the fly, or install permanently
+source <(oc completion bash)
+oc completion bash | sudo tee /etc/bash_completion.d/oc > /dev/null
+
+# Zsh: source on the fly (recommended)
+source <(oc completion zsh)
+# If you use alias (alias oc="opencode-config-cli"), also add:
+compdef _oc opencode-config-cli
+
+# Or save to completions dir:
+# oc completion zsh > ~/.zsh/completions/_oc
+# Add to ~/.zshrc: fpath=(~/.zsh/completions $fpath)
+# Add: compdef _oc opencode-config-cli
+# Clear cache: rm -f ~/.zcompdump && exec zsh
+
+# Fish
+oc completion fish > ~/.config/fish/completions/oc.fish
+```
+
+Run `oc completion --help` for full instructions.
+
 ## Key Concepts
 
 | Concept | Description |
