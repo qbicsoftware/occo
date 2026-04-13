@@ -61,6 +61,8 @@ It is the durable inventory for what is already covered, what is verified in CI,
 | Reject missing manifest source | `oc source add <dir>` | invalid local directory | Implemented | ✅ | Validates manifest presence check |
 | Reject invalid tarball | `oc source add <tar.gz>` and/or `oc bundle apply <id> --preset <name>` | invalid local archive | Implemented | ✅ | Verifies archive extraction failure path |
 | Reject unknown source ID | `oc bundle apply <id> --preset <name>` | registry lookup | Implemented | ✅ | Verifies user-facing error path |
+| List presets from GitHub source with stable+prerelease releases | `oc preset list --sources` | GitHub release | Implemented | ✅ | Verifies stable release is selected, prerelease is skipped |
+| Skip prerelease-only GitHub sources with warning | `oc preset list --sources` | GitHub release | Implemented | ✅ | Verifies command fails with 'no stable release found' warning |
 
 ## Deferred Scenarios
 
@@ -90,3 +92,4 @@ It is the durable inventory for what is already covered, what is verified in CI,
 - 2026-04-01: Initial local-flow scenarios implemented in `e2e/` and wired into `.github/workflows/e2e-cli.yml`
 - 2026-04-01: Marked initial local-flow scenarios as CI-verified after successful `main` workflow run `23850747833` on Linux and macOS
 - 2026-04-09: Marked GitHub release apply coverage as implemented for explicit `--version`, interactive version selection, and non-interactive version-selection failure paths
+- 2026-04-13: Added E2E coverage for `oc preset list --sources` with GitHub release sources: stable+prerelease selection and prerelease-only warning (issue #148)

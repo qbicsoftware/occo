@@ -693,3 +693,45 @@ func newGitHubReleaseE2ERelease(t *testing.T, tag string, prerelease bool, mode 
 		checksums:    fmt.Sprintf("%s  %s\n", archiveSHA, archiveName),
 	}
 }
+
+func TestPresetListSourcesGitHubWithStableRelease(t *testing.T) {
+	env := testEnv(t)
+	server := newGitHubReleaseE2EServer(t, githubReleaseE2EFixture{
+		repo: "owner/repo",
+		releases: []githubReleaseE2ERelease{
+			newGitHubReleaseE2ERelease(t, "v1.3.0-alpha.1", true, "github-prerelease"),
+			newGitHubReleaseE2ERelease(t, "v1.2.3", false, "github-stable"),
+		},
+	})
+	defer server.Close()
+
+	env = append(env, "OC_GITHUB_API_BASE_URL="+server.URL)
+
+	addResult := runOC(t, env, "source", "add", "owner/repo", "--name", "test-stable")
+	requireSuccess(t, addResult)
+
+	listResult := runOC(t, env, "preset", "list", "--sources")
+	requireSuccess(t, listResult)
+	requireContains(t, listResult.stdout, "v1.2.3")
+	requireContains(t, listResult.stdout, "fixture")
+}
+
+func TestPresetListSourcesGitHubPrereleaseOnlyWarns(t *testing.T) {
+	env := testEnv(t)
+	server := newGitHubReleaseE2EServer(t, githubReleaseE2EFixture{
+		repo: "owner/repo",
+		releases: []githubReleaseE2ERelease{
+			newGitHubReleaseE2ERelease(t, "v2.0.0-alpha.1", true, "github-prerelease"),
+		},
+	})
+	defer server.Close()
+
+	env = append(env, "OC_GITHUB_API_BASE_URL="+server.URL)
+
+	addResult := runOC(t, env, "source", "add", "owner/repo", "--name", "test-prerelease")
+	requireSuccess(t, addResult)
+
+	listResult := runOCWithStdin(t, env, strings.NewReader(""), "preset", "list", "--sources")
+	requireFailure(t, listResult)
+	requireContains(t, listResult.stderr, "no stable release found")
+}
