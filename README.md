@@ -1,10 +1,10 @@
-# OpenCode Config CLI
+# Occo
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/sven1103-agent/opencode-config-cli?logo=go)](https://github.com/sven1103-agent/opencode-config-cli/blob/main/go.mod)
-[![Version](https://img.shields.io/github/v/release/sven1103-agent/opencode-config-cli?include_prereleases&label=version)](https://github.com/sven1103-agent/opencode-config-cli/releases)
-[![CI](https://github.com/sven1103-agent/opencode-config-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/sven1103-agent/opencode-config-cli/actions/workflows/ci.yml)
-[![E2E CLI](https://github.com/sven1103-agent/opencode-config-cli/actions/workflows/e2e-cli.yml/badge.svg)](https://github.com/sven1103-agent/opencode-config-cli/actions/workflows/e2e-cli.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/qbicsoftware/occo?logo=go)](https://github.com/qbicsoftware/occo/blob/main/go.mod)
+[![Version](https://img.shields.io/github/v/release/qbicsoftware/occo?include_prereleases&label=version)](https://github.com/qbicsoftware/occo/releases)
+[![CI](https://github.com/qbicsoftware/occo/actions/workflows/ci.yml/badge.svg)](https://github.com/qbicsoftware/occo/actions/workflows/ci.yml)
+[![E2E CLI](https://github.com/qbicsoftware/occo/actions/workflows/e2e-cli.yml/badge.svg)](https://github.com/qbicsoftware/occo/actions/workflows/e2e-cli.yml)
 
 **Manage OpenCode configuration bundles and schema-validated multi-agent workflows**
 
@@ -17,22 +17,19 @@ Repeatable capture steps: [docs/demo-playbook.md](docs/demo-playbook.md)
 
 ## What is this?
 
-A CLI tool (`oc`) that manages OpenCode [configuration bundles](docs/config-bundles.md) from external sources, enabling versioned, validated configs for AI agents.
+A CLI tool (`occo`) that manages OpenCode [configuration bundles](docs/config-bundles.md) from external sources, enabling versioned, validated configs for AI agents.
 
 ## Quick Start (30 seconds)
 
 ```sh
 # Install via Go (macOS/Linux)
-go install github.com/sven1103-agent/opencode-config-cli@latest
-
-# Create an alias to the default installation location
-alias oc='$HOME/go/bin/opencode-config-cli'
+go install github.com/qbicsoftware/occo@latest
 
 # Register a config bundle
-oc source add qbicsoftware/opencode-config-bundle --name qbic
+occo source add qbicsoftware/opencode-config-bundle --name qbic
 
 # Install a preset
-oc bundle install qbic --preset mixed --project-root .
+occo bundle install qbic --preset mixed --project-root .
 ```
 
 ## Installation
@@ -49,25 +46,22 @@ Enable tab completion for your shell:
 
 ```sh
 # Bash: source on the fly, or install permanently
-source <(oc completion bash)
-oc completion bash | sudo tee /etc/bash_completion.d/oc > /dev/null
+source <(occo completion bash)
+occo completion bash | sudo tee /etc/bash_completion.d/occo > /dev/null
 
 # Zsh: source on the fly (recommended)
-source <(oc completion zsh)
-# If you use alias (alias oc="opencode-config-cli"), also add:
-compdef _oc opencode-config-cli
+source <(occo completion zsh)
 
 # Or save to completions dir:
-# oc completion zsh > ~/.zsh/completions/_oc
+# occo completion zsh > ~/.zsh/completions/_occo
 # Add to ~/.zshrc: fpath=(~/.zsh/completions $fpath)
-# Add: compdef _oc opencode-config-cli
 # Clear cache: rm -f ~/.zcompdump && exec zsh
 
 # Fish
-oc completion fish > ~/.config/fish/completions/oc.fish
+occo completion fish > ~/.config/fish/completions/occo.fish
 ```
 
-Run `oc completion --help` for full instructions.
+Run `occo completion --help` for full instructions.
 
 ## Key Concepts
 
@@ -94,7 +88,7 @@ Run `oc completion --help` for full instructions.
 
 ## Legacy (Bash Version)
 
-The original Bash-based helper is deprecated. Use the Go CLI (`oc`) instead.
+The original Bash-based helper is deprecated. Use the Go CLI (`occo`) instead.
 
 Archive documentation: [docs/legacy/bash-helper.md](docs/legacy/bash-helper.md)
 

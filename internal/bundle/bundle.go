@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/qbicsoftware/occo/internal/source"
 	"github.com/santhosh-tekuri/jsonschema/v5"
-	"github.com/sven1103-agent/opencode-config-cli/internal/source"
 )
 
 //go:embed 1.0.0.schema.json

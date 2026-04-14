@@ -1,6 +1,6 @@
 # CLI Reference
 
-Complete reference for the `oc` CLI commands.
+Complete reference for the `occo` CLI commands.
 
 ## Global Options
 
