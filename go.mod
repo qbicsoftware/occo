@@ -1,4 +1,4 @@
-module github.com/sven1103-agent/opencode-config-cli
+module github.com/qbicsoftware/occo
 
 go 1.21
 

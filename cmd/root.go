@@ -4,22 +4,22 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/qbicsoftware/occo/internal/version"
 	"github.com/spf13/cobra"
-	"github.com/sven1103-agent/opencode-config-cli/internal/version"
 )
 
 var versionFlag bool
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "oc",
-	Short: "oc - OpenCode configuration manager",
-	Long: `oc is the OpenCode configuration manager CLI.
+	Use:   "occo",
+	Short: "occo - OpenCode configuration manager",
+	Long: `occo is the OpenCode configuration manager CLI.
 
 Manage OpenCode configurations, including presets, sources, and bundle operations.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if versionFlag {
-			fmt.Printf("oc %s\n", version.Version)
+			fmt.Printf("occo %s\n", version.Version)
 			os.Exit(0)
 		}
 		_ = cmd.Help()

@@ -36,9 +36,9 @@ jobs:
         run: mkdir -p .tmp
 
       - name: Build CLI
-        run: go build -o .tmp/oc .
+        run: go build -o .tmp/occo .
 
       - name: Run E2E tests
         run: go test ./e2e -v
         env:
-          OC_E2E_BINARY: ${{ github.workspace }}/.tmp/oc
+          OC_E2E_BINARY: ${{ github.workspace }}/.tmp/occo

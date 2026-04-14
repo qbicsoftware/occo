@@ -88,7 +88,7 @@ Migration was aborted by user.
 
 If your issue isn't listed here:
 
-1. Check [existing issues](https://github.com/sven1103-agent/opencode-config-cli/issues)
+1. Check [existing issues](https://github.com/qbicsoftware/occo/issues)
 2. Open a new issue with:
    - CLI version (`oc version`)
    - OS and shell

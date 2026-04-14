@@ -1,6 +1,6 @@
-# OpenCode Config CLI - Documentation
+# Occo - Documentation
 
-Welcome to the OpenCode Config CLI documentation. This CLI manages OpenCode configuration bundles from external sources, enabling versioned, validated configs for AI agents.
+Welcome to the Occo documentation. This CLI manages OpenCode configuration bundles from external sources, enabling versioned, validated configs for AI agents.
 
 ## Quick Links
 
@@ -23,16 +23,16 @@ Welcome to the OpenCode Config CLI documentation. This CLI manages OpenCode conf
 
 ```sh
 # Install via Go
-go install github.com/sven1103-agent/opencode-config-cli@latest
+go install github.com/qbicsoftware/occo@latest
 
 # Register a config bundle
-oc source add qbicsoftware/opencode-config-bundle --name qbic
+occo source add qbicsoftware/opencode-config-bundle --name qbic
 
 # Apply a preset
-oc bundle apply qbic --preset mixed --project-root .
+occo bundle apply qbic --preset mixed --project-root .
 
 # Or let the CLI prompt for a preset in a TTY
-oc bundle apply qbic --project-root .
+occo bundle apply qbic --project-root .
 ```
 
 ## Available Bundles
@@ -42,4 +42,4 @@ oc bundle apply qbic --project-root .
 ## Need Help?
 
 - Check the [troubleshooting guide](troubleshooting.md) for common issues
-- Open an issue at [github.com/sven1103-agent/opencode-config-cli/issues](https://github.com/sven1103-agent/opencode-config-cli/issues)
+- Open an issue at [github.com/qbicsoftware/occo/issues](https://github.com/qbicsoftware/occo/issues)

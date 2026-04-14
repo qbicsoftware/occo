@@ -1,18 +1,18 @@
 # .goreleaser.yaml
-# GoReleaser configuration for opencode-helper
+# GoReleaser configuration for occo
 # https://goreleaser.com/introduction
 
 version: 2
 
-project_name: oc
+project_name: occo
 
 before:
   hooks:
     - go mod tidy
 
 builds:
-  - id: oc
-    binary: oc
+  - id: occo
+    binary: occo
     main: ./main.go
     env:
       - CGO_ENABLED=0
@@ -28,15 +28,15 @@ builds:
         goarch: arm64
     ldflags:
       - -s -w
-      - -X github.com/sven1103-agent/opencode-config-cli/internal/version.Version={{.Version}}
+      - -X github.com/qbicsoftware/occo/internal/version.Version={{.Version}}
 
 changelog:
   disable: true
 
 release:
   github:
-    owner: sven1103-agent
-    name: opencode-config-cli
+    owner: qbicsoftware
+    name: occo
   draft: false
   prerelease: auto
   name_template: "{{.Tag}}"

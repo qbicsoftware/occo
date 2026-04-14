@@ -42,7 +42,7 @@ type provenance struct {
 func TestVersion(t *testing.T) {
 	result := runOC(t, testEnv(t), "version")
 	requireSuccess(t, result)
-	if !strings.HasPrefix(result.stdout, "oc ") {
+	if !strings.HasPrefix(result.stdout, "occo ") {
 		t.Fatalf("expected version output, got stdout=%q stderr=%q", result.stdout, result.stderr)
 	}
 }

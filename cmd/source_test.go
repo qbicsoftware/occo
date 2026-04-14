@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sven1103-agent/opencode-config-cli/internal/source"
+	"github.com/qbicsoftware/occo/internal/source"
 )
 
 // saveRegistry saves the current registry and returns a function to restore it

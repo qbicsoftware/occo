@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/qbicsoftware/occo/internal/bundle"
+	"github.com/qbicsoftware/occo/internal/source"
 	"github.com/spf13/cobra"
-	"github.com/sven1103-agent/opencode-config-cli/internal/bundle"
-	"github.com/sven1103-agent/opencode-config-cli/internal/source"
 )
 
 // setupTestProject creates a temporary project directory

@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/qbicsoftware/occo/internal/preset"
+	"github.com/qbicsoftware/occo/internal/schema"
 	"github.com/spf13/cobra"
-	"github.com/sven1103-agent/opencode-config-cli/internal/preset"
-	"github.com/sven1103-agent/opencode-config-cli/internal/schema"
 )
 
 // validateOutputPath ensures the output path stays within the project root

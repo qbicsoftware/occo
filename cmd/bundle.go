@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/qbicsoftware/occo/internal/bundle"
+	configpreset "github.com/qbicsoftware/occo/internal/preset"
+	"github.com/qbicsoftware/occo/internal/source"
 	"github.com/spf13/cobra"
-	"github.com/sven1103-agent/opencode-config-cli/internal/bundle"
-	configpreset "github.com/sven1103-agent/opencode-config-cli/internal/preset"
-	"github.com/sven1103-agent/opencode-config-cli/internal/source"
 )
 
 var (

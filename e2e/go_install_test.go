@@ -14,7 +14,7 @@ import (
 )
 
 func TestGoInstallTaggedVersionReportsTag(t *testing.T) {
-	const modulePath = "github.com/sven1103-agent/opencode-config-cli"
+	const modulePath = "github.com/qbicsoftware/occo"
 	const moduleVersion = "v1.0.0-alpha.3"
 
 	proxyRoot := t.TempDir()
@@ -44,14 +44,14 @@ func TestGoInstallTaggedVersionReportsTag(t *testing.T) {
 	})
 	requireSuccess(t, install)
 
-	binaryPath := filepath.Join(binDir, "opencode-config-cli")
+	binaryPath := filepath.Join(binDir, "occo")
 	metadata := runCommand(t, commandSpec{name: "go", args: []string{"version", "-m", binaryPath}})
 	requireSuccess(t, metadata)
 	requireContains(t, metadata.stdout, modulePath+"\t"+moduleVersion)
 
 	version := runCommand(t, commandSpec{name: binaryPath, args: []string{"version"}})
 	requireSuccess(t, version)
-	requireContains(t, version.stdout, "oc "+moduleVersion)
+	requireContains(t, version.stdout, "occo "+moduleVersion)
 }
 
 type commandSpec struct {

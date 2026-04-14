@@ -14,33 +14,29 @@ var completionCmd = &cobra.Command{
 
 Bash:
   # Source on the fly
-  source <(oc completion bash)
+  source <(occo completion bash)
 
   # Or install permanently
-  oc completion bash | sudo tee /etc/bash_completion.d/oc > /dev/null
+  occo completion bash | sudo tee /etc/bash_completion.d/occo > /dev/null
 
 Zsh:
   # Option 1: Source on the fly (recommended)
   # Add to end of ~/.zshrc (after compinit):
-  source <(oc completion zsh)
-  # If you use alias (alias oc="opencode-config-cli"), also run:
-  compdef _oc opencode-config-cli
+  source <(occo completion zsh)
 
   # Option 2: Save to completions dir
-  oc completion zsh > ~/.zsh/completions/_oc
+  occo completion zsh > ~/.zsh/completions/_occo
   # Ensure ~/.zshrc has: fpath=(~/.zsh/completions $fpath)
-  # Then add: compdef _oc opencode-config-cli
-
   # Clear completion cache and restart:
   rm -f ~/.zcompdump && exec zsh
 
 Fish:
-  oc completion fish > ~/.config/fish/completions/oc.fish
+  occo completion fish > ~/.config/fish/completions/occo.fish
 
 PowerShell:
-  oc completion powershell >> $PROFILE
+  occo completion powershell >> $PROFILE
 
-For more details, see: https://github.com/sven1103-agent/opencode-config-cli#shell-completion
+For more details, see: https://github.com/qbicsoftware/occo#shell-completion
 `,
 	Args:      cobra.ExactArgs(1),
 	ValidArgs: []string{"bash", "zsh", "fish", "powershell"},
@@ -54,12 +50,12 @@ For more details, see: https://github.com/sven1103-agent/opencode-config-cli#she
 			return rootCmd.GenFishCompletion(os.Stdout, true)
 		case "powershell":
 			return rootCmd.GenPowerShellCompletionWithDesc(os.Stdout)
-		default:
-			return fmt.Errorf("unsupported shell: %s", args[0])
 		}
+		return fmt.Errorf("unsupported shell: %s", args[0])
 	},
 }
 
 func init() {
+	completionCmd.Flags().BoolP("help", "h", false, "Help for completion")
 	rootCmd.AddCommand(completionCmd)
 }

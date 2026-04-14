@@ -410,7 +410,7 @@ Depends on:
 The helper CLI shall publish a standalone bootstrap install script (`install.sh`) as a separate release asset alongside the release bundle, enabling the standard `curl|sh` one-liner distribution:
 
 ```sh
-curl -fsSL https://github.com/sven1103-agent/opencode-config-cli/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/qbicsoftware/occo/releases/latest/download/install.sh | sh
 ```
 
 The bootstrap script shall:
@@ -1445,8 +1445,8 @@ Status:
 - In review
 
 PR:
-- [#141](https://github.com/sven1103-agent/opencode-config-cli/pull/141)
-- [#142](https://github.com/sven1103-agent/opencode-config-cli/pull/142)
+- [#141](https://github.com/qbicsoftware/occo/pull/141)
+- [#142](https://github.com/qbicsoftware/occo/pull/142)
 
 Type:
 - User-facing
@@ -1513,7 +1513,7 @@ Story:
 
 Acceptance criteria:
 - Homebrew tap created/updated
-- Installation via `brew install sven1103-agent/opencode-config-cli/oc` works
+- Installation via `brew install qbicsoftware/occo/occo` works
 - Formula stays up to date with releases
 
 ---
@@ -1527,7 +1527,7 @@ Status:
 - Done
 
 PR:
-- [#120](https://github.com/sven1103-agent/opencode-config-cli/pull/120)
+- [#120](https://github.com/qbicsoftware/occo/pull/120)
 
 Type:
 - Release-engineering-facing
@@ -2357,7 +2357,7 @@ Story:
 - As a developer, I want to install `opencode-helper` with a single `curl|sh` command without cloning the repository, so that getting started with the helper CLI is frictionless.
 
 Acceptance criteria:
-- Given a macOS or Linux system with `curl` or `wget` available, when I run `curl -fsSL https://github.com/sven1103-agent/opencode-config-cli/releases/latest/download/install.sh | sh`, then `opencode-helper` is installed to `~/.local/bin/opencode-helper` and the helper is on `PATH`.
+- Given a macOS or Linux system with `curl` or `wget` available, when I run `curl -fsSL https://github.com/qbicsoftware/occo/releases/latest/download/install.sh | sh`, then `opencode-helper` is installed to `~/.local/bin/opencode-helper` and the helper is on `PATH`.
 - Given the bootstrap install script, when I run `curl .../install.sh | sh --version v1.0.0`, then the installed helper is from that exact release tag.
 - Given the bootstrap install script, when the downloaded `opencode-helper-install` fails its checksum verification, then the bootstrap exits non-zero without executing the installer.
 - Given `OPENCODE_HELPER_VERSION` is set in the environment, when the bootstrap runs, then it uses that tag instead of `latest`.
