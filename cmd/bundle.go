@@ -692,12 +692,6 @@ func runBundleInit() error {
 		return fmt.Errorf("failed to check output directory: %w", err)
 	}
 
-	// Create presets directory
-	presetsDir := filepath.Join(outputDir, "presets")
-	if err := os.MkdirAll(presetsDir, 0755); err != nil {
-		return fmt.Errorf("failed to create presets directory: %w", err)
-	}
-
 	// Generate manifest
 	manifest := bundle.Manifest{
 		ManifestVersion: "1.0.0",
@@ -706,7 +700,7 @@ func runBundleInit() error {
 		Presets: []bundle.Preset{
 			{
 				Name:        "default",
-				Entrypoint:  "presets/default.json",
+				Entrypoint:  "default.json",
 				Description: "Default preset",
 				PromptFiles: []string{},
 			},
@@ -731,7 +725,7 @@ func runBundleInit() error {
   "agents": []
 }
 `
-	presetPath := filepath.Join(presetsDir, "default.json")
+	presetPath := filepath.Join(outputDir, "default.json")
 	if err := os.WriteFile(presetPath, []byte(defaultPresetContent), 0644); err != nil {
 		return fmt.Errorf("failed to write preset: %w", err)
 	}
@@ -752,7 +746,7 @@ func runBundleInit() error {
 		"```\n\n" +
 		"## Structure\n\n" +
 		"- `opencode-bundle.manifest.json` - Bundle manifest\n" +
-		"- `presets/` - Preset definitions\n\n" +
+		"- `default.json` - Default preset definition\n\n" +
 		"## Publishing\n\n" +
 		"This bundle can be distributed via GitHub releases. See the [bundle contract](https://github.com/qbicsoftware/opencode-config-cli/blob/main/docs/specs/bundle-contract.md) for details.\n"
 	readmePath := filepath.Join(outputDir, "README.md")

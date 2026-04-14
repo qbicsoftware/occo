@@ -819,12 +819,12 @@ func TestBundleInitWithNameAndVersion(t *testing.T) {
 	if manifest.Presets[0].Name != "default" {
 		t.Fatalf("manifest.Presets[0].Name = %q, want %q", manifest.Presets[0].Name, "default")
 	}
-	if manifest.Presets[0].Entrypoint != "presets/default.json" {
-		t.Fatalf("manifest.Presets[0].Entrypoint = %q, want %q", manifest.Presets[0].Entrypoint, "presets/default.json")
+	if manifest.Presets[0].Entrypoint != "default.json" {
+		t.Fatalf("manifest.Presets[0].Entrypoint = %q, want %q", manifest.Presets[0].Entrypoint, "default.json")
 	}
 
 	// Verify preset was created
-	presetPath := filepath.Join(outputDir, "presets", "default.json")
+	presetPath := filepath.Join(outputDir, "default.json")
 	if _, err := os.Stat(presetPath); err != nil {
 		t.Fatalf("expected preset to be created: %v", err)
 	}
@@ -1092,12 +1092,10 @@ func TestBundleInitCreatesPresetsSubdirectory(t *testing.T) {
 		t.Fatalf("runBundleInit() error = %v", err)
 	}
 
-	// Verify presets directory was created
-	presetsDir := filepath.Join(outputDir, "presets")
-	if info, err := os.Stat(presetsDir); err != nil {
-		t.Fatalf("presets directory not created: %v", err)
-	} else if !info.IsDir() {
-		t.Fatal("presets is not a directory")
+	// Verify preset file was created at root level (per bundle contract)
+	presetPath := filepath.Join(outputDir, "default.json")
+	if _, err := os.Stat(presetPath); err != nil {
+		t.Fatalf("preset file not created at root level: %v", err)
 	}
 }
 

@@ -756,8 +756,8 @@ func TestBundleInitNonInteractiveCreatesValidBundle(t *testing.T) {
 	requireContains(t, string(manifestData), `"bundle_version": "0.0.1"`)
 	requireContains(t, string(manifestData), `"name": "default"`)
 
-	// Verify preset was created
-	presetPath := filepath.Join(bundleDir, "presets", "default.json")
+	// Verify preset was created at root level (per bundle contract)
+	presetPath := filepath.Join(bundleDir, "default.json")
 	_, err = os.ReadFile(presetPath)
 	if err != nil {
 		t.Fatalf("failed to read preset: %v", err)
