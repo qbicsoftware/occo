@@ -796,25 +796,21 @@ func promptForBundleName() (string, error) {
 // promptForBundleVersion prompts the user for a bundle version in interactive mode
 func promptForBundleVersion() (string, error) {
 	reader := bufio.NewReader(bundlePromptIn)
-	for {
-		fmt.Fprintf(bundlePromptOut, "Enter bundle version (press Enter for default '%s'): ", defaultBundleVersion)
-		version, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				return "", fmt.Errorf("interactive input cancelled")
-			}
-			return "", fmt.Errorf("failed to read bundle version: %w", err)
+	fmt.Fprintf(bundlePromptOut, "Enter bundle version (press Enter for default '%s'): ", defaultBundleVersion)
+	version, err := reader.ReadString('\n')
+	if err != nil {
+		if err == io.EOF {
+			return "", fmt.Errorf("interactive input cancelled")
 		}
-
-		version = strings.TrimSpace(version)
-		if version == "" {
-			return defaultBundleVersion, nil
-		}
-
-		// Basic version validation (accept any non-empty string as version)
-		// More specific semantic version validation could be added here
-		return version, nil
+		return "", fmt.Errorf("failed to read bundle version: %w", err)
 	}
+
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return defaultBundleVersion, nil
+	}
+
+	return version, nil
 }
 
 // validateBundleName validates the bundle name according to bundle contract rules
