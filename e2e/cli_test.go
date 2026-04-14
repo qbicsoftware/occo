@@ -716,7 +716,7 @@ func TestPresetListSourcesGitHubWithStableRelease(t *testing.T) {
 	requireContains(t, listResult.stdout, "fixture")
 }
 
-func TestPresetListSourcesGitHubPrereleaseOnlyWarns(t *testing.T) {
+func TestPresetListSourcesGitHubPrereleaseOnlySucceeds(t *testing.T) {
 	env := testEnv(t)
 	server := newGitHubReleaseE2EServer(t, githubReleaseE2EFixture{
 		repo: "owner/repo",
@@ -731,9 +731,10 @@ func TestPresetListSourcesGitHubPrereleaseOnlyWarns(t *testing.T) {
 	addResult := runOC(t, env, "source", "add", "owner/repo", "--name", "test-prerelease")
 	requireSuccess(t, addResult)
 
-	listResult := runOCWithStdin(t, env, strings.NewReader(""), "source", "list", "--with-presets")
-	requireFailure(t, listResult)
-	requireContains(t, listResult.stderr, "no stable release found")
+	listResult := runOC(t, env, "source", "list", "--with-presets")
+	requireSuccess(t, listResult)
+	requireContains(t, listResult.stdout, "v2.0.0-alpha.1")
+	requireContains(t, listResult.stdout, "fixture")
 }
 
 // Bundle Init E2E Tests for US-053
