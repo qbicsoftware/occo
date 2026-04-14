@@ -338,13 +338,21 @@ func inspectGitHubBundleVersion(sourceLocation, requestedVersion string) (string
 	if err != nil {
 		return "", err
 	}
+	var latestPrerelease string
 	for _, release := range releases {
 		if !release.Prerelease {
 			return release.TagName, nil
 		}
+		if latestPrerelease == "" || release.TagName > latestPrerelease {
+			latestPrerelease = release.TagName
+		}
 	}
 
-	return "", fmt.Errorf("no stable release found for %s; prereleases are available", ref.Repo)
+	if latestPrerelease != "" {
+		return latestPrerelease, nil
+	}
+
+	return "", fmt.Errorf("no releases found for %s", ref.Repo)
 }
 
 func promptForPresetSelection(manifest *bundle.Manifest) (string, error) {
