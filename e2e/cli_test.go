@@ -710,7 +710,7 @@ func TestPresetListSourcesGitHubWithStableRelease(t *testing.T) {
 	addResult := runOC(t, env, "source", "add", "owner/repo", "--name", "test-stable")
 	requireSuccess(t, addResult)
 
-	listResult := runOC(t, env, "preset", "list", "--sources")
+	listResult := runOC(t, env, "source", "list", "--with-presets")
 	requireSuccess(t, listResult)
 	requireContains(t, listResult.stdout, "v1.2.3")
 	requireContains(t, listResult.stdout, "fixture")
@@ -731,7 +731,7 @@ func TestPresetListSourcesGitHubPrereleaseOnlyWarns(t *testing.T) {
 	addResult := runOC(t, env, "source", "add", "owner/repo", "--name", "test-prerelease")
 	requireSuccess(t, addResult)
 
-	listResult := runOCWithStdin(t, env, strings.NewReader(""), "preset", "list", "--sources")
+	listResult := runOCWithStdin(t, env, strings.NewReader(""), "source", "list", "--with-presets")
 	requireFailure(t, listResult)
 	requireContains(t, listResult.stderr, "no stable release found")
 }
