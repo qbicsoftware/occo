@@ -328,6 +328,13 @@ func installPromptFiles(bundleRoot, projectRoot string, promptFiles []string, fo
 	}
 
 	for _, pf := range promptFiles {
+		normalizedPath := strings.TrimPrefix(pf, "prompts/")
+		normalizedPath = strings.TrimPrefix(normalizedPath, "/")
+
+		if normalizedPath == "" {
+			return nil, fmt.Errorf("invalid prompt path in config: %q - path cannot be empty after normalization", pf)
+		}
+
 		sourcePath := filepath.Join(bundleRoot, pf)
 
 		// Verify source file exists
@@ -335,17 +342,17 @@ func installPromptFiles(bundleRoot, projectRoot string, promptFiles []string, fo
 			return nil, fmt.Errorf("prompt file not found in bundle: %s", pf)
 		}
 
-		// Determine destination (preserve relative structure)
-		destPath := filepath.Join(promptsDir, filepath.Base(pf))
+		// Determine destination (preserve relative structure, but strip leading "prompts/" prefix)
+		destPath := filepath.Join(promptsDir, filepath.Base(normalizedPath))
 
-		// Create subdirectory if needed (for paths like prompts/subdir/file.md)
-		if strings.Contains(pf, string(filepath.Separator)) {
-			subdir := filepath.Dir(pf)
+		// Create subdirectory if needed (for paths like subdir/file.md)
+		if strings.Contains(normalizedPath, string(filepath.Separator)) {
+			subdir := filepath.Dir(normalizedPath)
 			subdirPath := filepath.Join(promptsDir, subdir)
 			if err := os.MkdirAll(subdirPath, 0755); err != nil {
 				return nil, fmt.Errorf("failed to create subdirectory: %w", err)
 			}
-			destPath = filepath.Join(promptsDir, pf)
+			destPath = filepath.Join(promptsDir, normalizedPath)
 		}
 
 		// Check if destination exists (unless force)
