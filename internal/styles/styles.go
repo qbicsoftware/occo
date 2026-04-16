@@ -3,6 +3,7 @@
 package styles
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -238,9 +239,9 @@ func SectionHeader(title string) string {
 		// Make header more prominent with accent color and bold
 		header := lipgloss.Style{}.Foreground(promptColor).Bold(true).Render(titleWithColon)
 		separator := MutedStyle.Render(strings.Repeat(sep, 36))
-		return header + "\n" + separator
+		return header + "\n" + separator + "\n"
 	}
-	return titleWithColon + "\n" + strings.Repeat(sep, 36)
+	return titleWithColon + "\n" + strings.Repeat(sep, 36) + "\n"
 }
 
 // Highlight outputs highlighted/important text
@@ -249,6 +250,97 @@ func Highlight(msg string) string {
 		return lipgloss.Style{}.Foreground(promptColor).Bold(true).Render(msg)
 	}
 	return msg
+}
+
+// SourceTypeIcon returns an icon for the given source type
+func SourceTypeIcon(sourceType string) string {
+	if !ShouldRenderColor() {
+		switch sourceType {
+		case "github-release":
+			return "[GH]"
+		case "local-directory":
+			return "[DIR]"
+		case "local-archive":
+			return "[TAR]"
+		default:
+			return "[*]"
+		}
+	}
+	switch sourceType {
+	case "github-release":
+		return lipgloss.Style{}.Foreground(infoColor).Render("[GH]")
+	case "local-directory":
+		return lipgloss.Style{}.Foreground(successColor).Render("[DIR]")
+	case "local-archive":
+		return lipgloss.Style{}.Foreground(warningColor).Render("[TAR]")
+	default:
+		return lipgloss.Style{}.Foreground(mutedColor).Render("[*]")
+	}
+}
+
+// SourceTypeLabel returns a human-readable label for the source type
+func SourceTypeLabel(sourceType string) string {
+	switch sourceType {
+	case "github-release":
+		return "GitHub"
+	case "local-directory":
+		return "Local"
+	case "local-archive":
+		return "Archive"
+	default:
+		return sourceType
+	}
+}
+
+// DefaultIndicator outputs the default selection indicator (arrow)
+func DefaultIndicator(msg string) string {
+	if ShouldRenderColor() {
+		return lipgloss.Style{}.Foreground(successColor).Bold(true).Render("▸" + msg)
+	}
+	return "▸" + msg
+}
+
+// YesNoPrompt outputs a yes/no prompt with default indication
+func YesNoPrompt(prompt, defaultChoice string) string {
+	defaultStr := ""
+	if defaultChoice == "y" {
+		defaultStr = "Y/n"
+	} else if defaultChoice == "n" {
+		defaultStr = "y/N"
+	}
+	if ShouldRenderColor() {
+		return PromptStyle.Render(prompt) + " " + MutedStyle.Render("("+defaultStr+")")
+	}
+	return prompt + " (" + defaultStr + ")"
+}
+
+// Loading outputs a loading/progress message
+func Loading(msg string) string {
+	if ShouldRenderColor() {
+		return lipgloss.Style{}.Foreground(infoColor).Render("◌ " + msg)
+	}
+	return "◌ " + msg
+}
+
+// AssetIndicator outputs an indicator for asset availability
+func AssetIndicator(hasAssets bool, assetCount int) string {
+	if hasAssets {
+		if ShouldRenderColor() {
+			return lipgloss.Style{}.Foreground(successColor).Render("[" + fmtAssets(assetCount) + "]")
+		}
+		return "[" + fmtAssets(assetCount) + "]"
+	}
+	if ShouldRenderColor() {
+		return MutedStyle.Render("[no assets]")
+	}
+	return "[no assets]"
+}
+
+func fmtAssets(count int) string {
+	if count == 1 {
+		return "1 asset"
+	}
+	return fmt.Sprintf("%d assets", count)
 }
 
 // SubHeader outputs a subsection header (subtle)
