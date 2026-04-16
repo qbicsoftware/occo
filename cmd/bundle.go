@@ -14,6 +14,7 @@ import (
 	"github.com/qbicsoftware/occo/internal/bundle"
 	configpreset "github.com/qbicsoftware/occo/internal/preset"
 	"github.com/qbicsoftware/occo/internal/source"
+	"github.com/qbicsoftware/occo/internal/styles"
 	"github.com/spf13/cobra"
 )
 
@@ -261,8 +262,8 @@ func runBundleInstall(sourceRef string, interactivePreset bool) error {
 
 	// Dry run mode
 	if bundleDryRun {
-		fmt.Printf("dry-run: apply preset '%s' from bundle '%s'\n", selectedPreset, manifest.BundleName)
-		fmt.Printf("dry-run: write config to %s\n", outputPath)
+		fmt.Println(styles.DryRun(fmt.Sprintf("apply preset '%s' from bundle '%s'", selectedPreset, manifest.BundleName)))
+		fmt.Println(styles.DryRun(fmt.Sprintf("write config to %s", outputPath)))
 		return nil
 	}
 
@@ -270,7 +271,7 @@ func runBundleInstall(sourceRef string, interactivePreset bool) error {
 	if err := configpreset.WriteConfig(outputPath, string(presetContent), bundleForce); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
-	fmt.Printf("written: %s\n", outputPath)
+	fmt.Println(styles.Written(outputPath))
 
 	// Install prompt files if enabled and present
 	var installedAssets []bundle.InstalledAsset
@@ -301,8 +302,8 @@ func runBundleInstall(sourceRef string, interactivePreset bool) error {
 	if err := bundle.SaveProvenance(projectRoot, prov, bundleForce); err != nil {
 		return fmt.Errorf("failed to save provenance: %w", err)
 	}
-	fmt.Printf("written: %s\n", bundle.ProvenancePath(projectRoot))
-	fmt.Println("done: bundle applied")
+	fmt.Println(styles.Written(bundle.ProvenancePath(projectRoot)))
+	fmt.Println(styles.Done("bundle applied"))
 
 	return nil
 }
@@ -448,7 +449,7 @@ func promptForPresetSelection(manifest *bundle.Manifest) (string, error) {
 			}
 			fmt.Fprintf(bundlePromptOut, "  %d) %s\n", i+1, preset.Name)
 		}
-		fmt.Fprint(bundlePromptOut, "Select a preset: ")
+		fmt.Fprint(bundlePromptOut, styles.Prompt("Select a preset: "))
 
 		selection, err := reader.ReadString('\n')
 		if err != nil {
@@ -471,7 +472,7 @@ func promptForPresetSelection(manifest *bundle.Manifest) (string, error) {
 			}
 		}
 
-		fmt.Fprintln(bundlePromptOut, "Invalid selection. Please enter a preset number or exact name.")
+		fmt.Fprintln(bundlePromptOut, styles.Invalid("Please enter a preset number or exact name."))
 	}
 }
 
@@ -491,7 +492,7 @@ func promptForSourceSelection() (string, error) {
 		for i, src := range sources {
 			fmt.Fprintf(bundlePromptOut, "  %d) %s (%s) - %s\n", i+1, src.ID, src.Type, src.Name)
 		}
-		fmt.Fprint(bundlePromptOut, "Select a source: ")
+		fmt.Fprint(bundlePromptOut, styles.Prompt("Select a source: "))
 
 		selection, err := reader.ReadString('\n')
 		if err != nil {
@@ -524,7 +525,7 @@ func promptForSourceSelection() (string, error) {
 			}
 		}
 
-		fmt.Fprintln(bundlePromptOut, "Invalid selection. Please enter a source number, ID, or name.")
+		fmt.Fprintln(bundlePromptOut, styles.Invalid("Please enter a source number, ID, or name."))
 	}
 }
 
@@ -543,7 +544,7 @@ func promptForGitHubReleaseSelection(sourceLocation string, releases []bundle.Gi
 			}
 			fmt.Fprintf(bundlePromptOut, "  %d) %s\n", i+1, label)
 		}
-		fmt.Fprint(bundlePromptOut, "Select a version: ")
+		fmt.Fprint(bundlePromptOut, styles.Prompt("Select a version: "))
 
 		selection, err := reader.ReadString('\n')
 		if err != nil {
@@ -566,7 +567,7 @@ func promptForGitHubReleaseSelection(sourceLocation string, releases []bundle.Gi
 			}
 		}
 
-		fmt.Fprintln(bundlePromptOut, "Invalid selection. Please enter a version number or exact tag.")
+		fmt.Fprintln(bundlePromptOut, styles.Invalid("Please enter a version number or exact tag."))
 	}
 }
 
@@ -802,7 +803,7 @@ func runBundleInit() error {
 	if err := os.WriteFile(manifestPath, manifestData, 0644); err != nil {
 		return fmt.Errorf("failed to write manifest: %w", err)
 	}
-	fmt.Printf("written: %s\n", manifestPath)
+	fmt.Println(styles.Written(manifestPath))
 
 	// Generate default preset placeholder
 	defaultPresetContent := `{
@@ -815,7 +816,7 @@ func runBundleInit() error {
 	if err := os.WriteFile(presetPath, []byte(defaultPresetContent), 0644); err != nil {
 		return fmt.Errorf("failed to write preset: %w", err)
 	}
-	fmt.Printf("written: %s\n", presetPath)
+	fmt.Println(styles.Written(presetPath))
 
 	// Generate README
 	readmeContent := "# " + bundleName + "\n\n" +
@@ -839,9 +840,9 @@ func runBundleInit() error {
 	if err := os.WriteFile(readmePath, []byte(readmeContent), 0644); err != nil {
 		return fmt.Errorf("failed to write README: %w", err)
 	}
-	fmt.Printf("written: %s\n", readmePath)
+	fmt.Println(styles.Written(readmePath))
 
-	fmt.Println("done: bundle initialized")
+	fmt.Println(styles.Done("bundle initialized"))
 	return nil
 }
 
@@ -849,7 +850,7 @@ func runBundleInit() error {
 func promptForBundleName() (string, error) {
 	reader := bufio.NewReader(bundlePromptIn)
 	for {
-		fmt.Fprint(bundlePromptOut, "Enter bundle name: ")
+		fmt.Fprint(bundlePromptOut, styles.Prompt("Enter bundle name: "))
 		name, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
@@ -860,12 +861,12 @@ func promptForBundleName() (string, error) {
 
 		name = strings.TrimSpace(name)
 		if name == "" {
-			fmt.Fprintln(bundlePromptOut, "Bundle name cannot be empty. Please enter a valid name.")
+			fmt.Fprintln(bundlePromptOut, styles.Error("Bundle name cannot be empty. Please enter a valid name."))
 			continue
 		}
 
 		if err := validateBundleName(name); err != nil {
-			fmt.Fprintf(bundlePromptOut, "Invalid bundle name: %s\n", err)
+			fmt.Fprintf(bundlePromptOut, "%s: %s\n", styles.Error("Invalid bundle name"), err)
 			continue
 		}
 
@@ -876,7 +877,7 @@ func promptForBundleName() (string, error) {
 // promptForBundleVersion prompts the user for a bundle version in interactive mode
 func promptForBundleVersion() (string, error) {
 	reader := bufio.NewReader(bundlePromptIn)
-	fmt.Fprintf(bundlePromptOut, "Enter bundle version (press Enter for default '%s'): ", defaultBundleVersion)
+	fmt.Fprintf(bundlePromptOut, styles.Prompt("Enter bundle version (press Enter for default '%s'): "), defaultBundleVersion)
 	version, err := reader.ReadString('\n')
 	if err != nil {
 		if err == io.EOF {
