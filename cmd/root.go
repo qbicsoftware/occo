@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/qbicsoftware/occo/internal/styles"
 	"github.com/qbicsoftware/occo/internal/version"
 	"github.com/spf13/cobra"
@@ -63,7 +64,7 @@ func wrapWithStyle(style, text string) string {
 		}
 
 		// First line is the title - make it bold
-		title := styles.ValueStyle.Copy().Bold(true).Render(lines[0])
+		title := lipgloss.Style{}.Foreground(lipgloss.Color("#ABB2BF")).Bold(true).Render(lines[0])
 
 		// Rest is description in medium gray
 		var desc string

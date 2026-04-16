@@ -447,7 +447,7 @@ func promptForPresetSelection(manifest *bundle.Manifest) (string, error) {
 	reader := bufio.NewReader(bundlePromptIn)
 	for {
 		fmt.Fprintln(bundlePromptOut)
-		fmt.Fprintf(bundlePromptOut, styles.SectionHeader("Select Preset for "+manifest.BundleName))
+		fmt.Fprint(bundlePromptOut, styles.SectionHeader("Select Preset for "+manifest.BundleName))
 		for i, preset := range manifest.Presets {
 			if preset.Description != "" {
 				fmt.Fprintf(bundlePromptOut, "  %d) %s  %s\n",
