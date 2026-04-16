@@ -238,9 +238,9 @@ func SectionHeader(title string) string {
 		// Make header more prominent with accent color and bold
 		header := lipgloss.Style{}.Foreground(promptColor).Bold(true).Render(titleWithColon)
 		separator := MutedStyle.Render(strings.Repeat(sep, 36))
-		return header + "\n" + separator
+		return header + "\n" + separator + "\n"
 	}
-	return titleWithColon + "\n" + strings.Repeat(sep, 36)
+	return titleWithColon + "\n" + strings.Repeat(sep, 36) + "\n"
 }
 
 // Highlight outputs highlighted/important text
