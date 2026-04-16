@@ -1,0 +1,13 @@
+{
+  "manifest_version": "1.0.0",
+  "bundle_name": "bundle-with-prompts",
+  "bundle_version": "v1.0.0",
+  "presets": [
+    {
+      "name": "default",
+      "entrypoint": "configs/default.json",
+      "description": "Preset with prompts",
+      "prompt_files": ["prompts/coder.md"]
+    }
+  ]
+}

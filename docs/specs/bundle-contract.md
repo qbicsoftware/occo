@@ -109,6 +109,84 @@ This file is embedded into the `oc` CLI binary at build time.
 | `entrypoint` | string | Yes | Path to preset JSON file relative to bundle root |
 | `prompt_files` | array | Yes | Array of prompt file paths (can be empty) |
 
+---
+
+## Asset Installation
+
+This section describes how bundle assets (prompts, and in future releases agents, commands, tools) are installed to the local project.
+
+### Prompt File Installation
+
+When applying a preset that declares `prompt_files`, the CLI copies those files to the project's `.opencode/prompts/` directory.
+
+**Installation behavior:**
+- **Target directory**: `.opencode/prompts/` (project-local)
+- **Path preservation**: Relative structure is preserved (e.g., `prompts/subdir/file.md` → `.opencode/prompts/subdir/file.md`)
+- **Default behavior**: Prompt files are installed automatically when declared in the preset
+- **Skip installation**: Use `--assets=false` to skip prompt file installation
+
+**Example:**
+
+Given a bundle with this manifest:
+```json
+{
+  "presets": [{
+    "name": "default",
+    "entrypoint": "configs/default.json",
+    "prompt_files": ["prompts/coder.md", "prompts/reviewer.md"]
+  }]
+}
+```
+
+After running `oc bundle apply <source> --preset default`:
+```
+<project-root>/
+├── .opencode/
+│   ├── prompts/
+│   │   ├── coder.md
+│   │   └── reviewer.md
+│   ├── bundle-provenance.json
+│   └── opencode.json  (or project root, based on --output flag)
+```
+
+**Agent config reference:**
+
+The preset's `opencode.json` can reference installed prompts using the `{file:...}` syntax:
+
+```json
+{
+  "agent": {
+    "coder": {
+      "prompt": "{file:.opencode/prompts/coder.md}"
+    }
+  }
+}
+```
+
+Path resolution: The `{file:...}` path is relative to where `opencode.json` is located. If `opencode.json` is at project root, use `.opencode/prompts/`. If it's in `.opencode/`, use `prompts/`.
+
+**CLI flags:**
+- `--assets=true` (default): Install prompt files when declared
+- `--assets=false`: Skip prompt file installation
+- `--force`: Overwrite existing prompt files
+
+**Provenance tracking:**
+
+Installed assets are tracked in `.opencode/bundle-provenance.json`:
+
+```json
+{
+  "source_id": "...",
+  "source_name": "...",
+  "installed_assets": [
+    {
+      "source": "prompts/coder.md",
+      "destination": "/path/to/project/.opencode/prompts/coder.md"
+    }
+  ]
+}
+```
+
 ### Optional Fields
 
 | Field | Type | Description |
