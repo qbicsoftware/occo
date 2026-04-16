@@ -1,0 +1,8 @@
+{
+  "default_agent": "build",
+  "agent": {
+    "coder": {
+      "prompt": "{file:.opencode/prompts/coder.md}"
+    }
+  }
+}

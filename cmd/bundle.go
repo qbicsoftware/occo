@@ -26,6 +26,7 @@ var (
 	bundleDryRun             bool
 	bundleOutput             string
 	bundleYes                bool
+	bundleInstallAssets                = true
 	bundleResolveToLocal               = bundle.ResolveToLocal
 	bundleListGitHubReleases           = bundle.ListGitHubReleases
 	bundlePromptIn           io.Reader = os.Stdin
@@ -166,6 +167,7 @@ func init() {
 	bundleInstallCmd.Flags().BoolVar(&bundleAuto, "auto", false, "Run in non-interactive mode (requires source-ref and --preset)")
 	bundleInstallCmd.Flags().BoolVar(&bundleForce, "force", false, "Overwrite existing files")
 	bundleInstallCmd.Flags().BoolVar(&bundleDryRun, "dry-run", false, "Show what would be done without doing it")
+	bundleInstallCmd.Flags().BoolVar(&bundleInstallAssets, "assets", true, "Install prompt files to .opencode/ directory")
 	bundleInstallCmd.ValidArgsFunction = completeSourceRefs
 	_ = bundleInstallCmd.RegisterFlagCompletionFunc("preset", completeBundlePresetNames)
 	bundleUpdateCmd.ValidArgsFunction = completeSourceRefs
@@ -270,15 +272,30 @@ func runBundleInstall(sourceRef string, interactivePreset bool) error {
 	}
 	fmt.Printf("written: %s\n", outputPath)
 
+	// Install prompt files if enabled and present
+	var installedAssets []bundle.InstalledAsset
+	if bundleInstallAssets && len(bundlePresetEntry.PromptFiles) > 0 {
+		installed, err := installPromptFiles(bundleRoot, projectRoot, bundlePresetEntry.PromptFiles, bundleForce)
+		if err != nil {
+			return fmt.Errorf("failed to install prompt files: %w", err)
+		}
+		installedAssets = installed
+
+		for _, a := range installed {
+			fmt.Printf("written: %s\n", a.Destination)
+		}
+	}
+
 	// Write provenance
 	prov := &bundle.Provenance{
-		SourceID:      src.ID,
-		SourceName:    src.Name,
-		SourceType:    string(src.Type),
-		BundleVersion: manifest.BundleVersion,
-		PresetName:    selectedPreset,
-		Entrypoint:    bundlePresetEntry.Entrypoint,
-		AppliedAt:     "2026-03-31T00:00:00Z", // Would use time.Now().Format(time.RFC3339)
+		SourceID:        src.ID,
+		SourceName:      src.Name,
+		SourceType:      string(src.Type),
+		BundleVersion:   manifest.BundleVersion,
+		PresetName:      selectedPreset,
+		Entrypoint:      bundlePresetEntry.Entrypoint,
+		AppliedAt:       "2026-03-31T00:00:00Z", // Would use time.Now().Format(time.RFC3339)
+		InstalledAssets: installedAssets,
 	}
 
 	if err := bundle.SaveProvenance(projectRoot, prov, bundleForce); err != nil {
@@ -288,6 +305,67 @@ func runBundleInstall(sourceRef string, interactivePreset bool) error {
 	fmt.Println("done: bundle applied")
 
 	return nil
+}
+
+// installPromptFiles copies prompt files from the bundle to the project's .opencode/prompts/ directory.
+func installPromptFiles(bundleRoot, projectRoot string, promptFiles []string, force bool) ([]bundle.InstalledAsset, error) {
+	if len(promptFiles) == 0 {
+		return nil, nil
+	}
+
+	var installed []bundle.InstalledAsset
+	promptsDir := filepath.Join(projectRoot, ".opencode", "prompts")
+
+	// Create prompts directory if it doesn't exist
+	if err := os.MkdirAll(promptsDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create prompts directory: %w", err)
+	}
+
+	for _, pf := range promptFiles {
+		sourcePath := filepath.Join(bundleRoot, pf)
+
+		// Verify source file exists
+		if _, err := os.Stat(sourcePath); err != nil {
+			return nil, fmt.Errorf("prompt file not found in bundle: %s", pf)
+		}
+
+		// Determine destination (preserve relative structure)
+		destPath := filepath.Join(promptsDir, filepath.Base(pf))
+
+		// Create subdirectory if needed (for paths like prompts/subdir/file.md)
+		if strings.Contains(pf, string(filepath.Separator)) {
+			subdir := filepath.Dir(pf)
+			subdirPath := filepath.Join(promptsDir, subdir)
+			if err := os.MkdirAll(subdirPath, 0755); err != nil {
+				return nil, fmt.Errorf("failed to create subdirectory: %w", err)
+			}
+			destPath = filepath.Join(promptsDir, pf)
+		}
+
+		// Check if destination exists (unless force)
+		if !force {
+			if _, err := os.Stat(destPath); err == nil {
+				return nil, fmt.Errorf("prompt file already exists: %s (use --force to overwrite)", destPath)
+			}
+		}
+
+		// Copy the file
+		sourceData, err := os.ReadFile(sourcePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read prompt file: %w", err)
+		}
+
+		if err := os.WriteFile(destPath, sourceData, 0644); err != nil {
+			return nil, fmt.Errorf("failed to write prompt file: %w", err)
+		}
+
+		installed = append(installed, bundle.InstalledAsset{
+			Source:      pf,
+			Destination: destPath,
+		})
+	}
+
+	return installed, nil
 }
 
 func resolveGitHubBundleVersion(sourceLocation, requestedVersion string, allowPrompt bool) (string, error) {

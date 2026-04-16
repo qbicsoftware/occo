@@ -66,15 +66,22 @@ type Preset struct {
 	Description string   `json:"description,omitempty"`
 }
 
+// InstalledAsset represents a file installed from a bundle to the project.
+type InstalledAsset struct {
+	Source      string `json:"source"`      // Path in bundle (relative to bundle root)
+	Destination string `json:"destination"` // Relative path in project .opencode/
+}
+
 // Provenance represents the bundle provenance file stored in the project.
 type Provenance struct {
-	SourceID      string `json:"source_id"`
-	SourceName    string `json:"source_name"`
-	SourceType    string `json:"source_type"`
-	BundleVersion string `json:"bundle_version"`
-	PresetName    string `json:"preset_name"`
-	Entrypoint    string `json:"entrypoint"`
-	AppliedAt     string `json:"applied_at"`
+	SourceID        string           `json:"source_id"`
+	SourceName      string           `json:"source_name"`
+	SourceType      string           `json:"source_type"`
+	BundleVersion   string           `json:"bundle_version"`
+	PresetName      string           `json:"preset_name"`
+	Entrypoint      string           `json:"entrypoint"`
+	AppliedAt       string           `json:"applied_at"`
+	InstalledAssets []InstalledAsset `json:"installed_assets,omitempty"`
 }
 
 // LoadManifest loads a bundle manifest from the given path.

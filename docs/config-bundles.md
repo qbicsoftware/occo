@@ -41,6 +41,13 @@ oc bundle apply qbic --version v1.0.0 --preset mixed --project-root .
 oc bundle apply qbic --preset mixed --project-root .
 ```
 
+**Prompt files:** If the preset declares `prompt_files` in the manifest, those files are automatically installed to `.opencode/prompts/` in your project. This allows agent configs to reference them using `{file:.opencode/prompts/filename.md}`.
+
+**Controlling asset installation:**
+- `--assets=true` (default): Install prompt files automatically
+- `--assets=false`: Skip prompt file installation
+- `--force`: Overwrite existing files
+
 If a source publishes multiple versions, the CLI should support:
 
 - explicit version selection with `--version <tag>`
@@ -87,19 +94,45 @@ Create `opencode-bundle.manifest.json` at your bundle root:
 | `entrypoint` | Path to preset JSON file |
 | `prompt_files` | Array of prompt file paths (can be empty) |
 
-### 4. Publish as GitHub Release
+### 4. Add Prompt Files (Optional)
+
+If your preset includes agent configurations that reference custom prompts, include those in your bundle:
+
+```
+my-bundle/
+├── opencode-bundle.manifest.json
+├── opencode.default.json
+└── prompts/
+    ├── coder.md
+    └── reviewer.md
+```
+
+Reference them in your preset config:
+
+```json
+{
+  "agent": {
+    "coder": {
+      "prompt": "{file:.opencode/prompts/coder.md}"
+    }
+  }
+}
+```
+
+### 5. Publish as GitHub Release
 
 1. Create a GitHub release. Stable releases and prereleases are both valid bundle sources.
 2. Attach a `.tar.gz` bundle archive containing:
    - `opencode-bundle.manifest.json` at root, or under a single top-level directory
    - All preset files referenced by the manifest
+   - All prompt files referenced in `prompt_files` arrays
    - `.opencode/schemas/` when your bundle ships the canonical session schemas
 3. Attach a matching `-checksums.txt` file using SHA-256.
 4. Do not rely on GitHub's auto-generated source tarballs as the primary consumable bundle artifact.
 
 See `docs/specs/bundle-contract.md` for the full GitHub-release distribution contract and a copy-pasteable GitHub Actions example workflow.
 
-### 5. Register Your Bundle
+### 6. Register Your Bundle
 
 ```sh
 oc source add your-username/your-bundle --name mybundle
