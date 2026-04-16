@@ -272,6 +272,22 @@ func runBundleInstall(sourceRef string, interactivePreset bool) error {
 		return nil
 	}
 
+	// Check for existing files and prompt for override if needed
+	if !bundleForce {
+		if filesToOverwrite, err := checkExistingFiles(projectRoot, outputPath, bundlePresetEntry.PromptFiles); err != nil {
+			return err
+		} else if len(filesToOverwrite) > 0 {
+			proceed, err := promptForOverrideConfirmation(filesToOverwrite)
+			if err != nil {
+				return err
+			}
+			if !proceed {
+				return fmt.Errorf("installation cancelled by user")
+			}
+			bundleForce = true
+		}
+	}
+
 	// Reuse the shared write semantics so bundle apply matches init/preset overwrite behavior.
 	if err := configpreset.WriteConfig(outputPath, string(presetContent), bundleForce); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
@@ -328,13 +344,6 @@ func installPromptFiles(bundleRoot, projectRoot string, promptFiles []string, fo
 	}
 
 	for _, pf := range promptFiles {
-		normalizedPath := strings.TrimPrefix(pf, "prompts/")
-		normalizedPath = strings.TrimPrefix(normalizedPath, "/")
-
-		if normalizedPath == "" {
-			return nil, fmt.Errorf("invalid prompt path in config: %q - path cannot be empty after normalization", pf)
-		}
-
 		sourcePath := filepath.Join(bundleRoot, pf)
 
 		// Verify source file exists
@@ -342,17 +351,17 @@ func installPromptFiles(bundleRoot, projectRoot string, promptFiles []string, fo
 			return nil, fmt.Errorf("prompt file not found in bundle: %s", pf)
 		}
 
-		// Determine destination (preserve relative structure, but strip leading "prompts/" prefix)
-		destPath := filepath.Join(promptsDir, filepath.Base(normalizedPath))
+		// Determine destination (preserve relative structure)
+		destPath := filepath.Join(promptsDir, filepath.Base(pf))
 
-		// Create subdirectory if needed (for paths like subdir/file.md)
-		if strings.Contains(normalizedPath, string(filepath.Separator)) {
-			subdir := filepath.Dir(normalizedPath)
+		// Create subdirectory if needed (for paths like prompts/subdir/file.md)
+		if strings.Contains(pf, string(filepath.Separator)) {
+			subdir := filepath.Dir(pf)
 			subdirPath := filepath.Join(promptsDir, subdir)
 			if err := os.MkdirAll(subdirPath, 0755); err != nil {
 				return nil, fmt.Errorf("failed to create subdirectory: %w", err)
 			}
-			destPath = filepath.Join(promptsDir, normalizedPath)
+			destPath = filepath.Join(promptsDir, pf)
 		}
 
 		// Check if destination exists (unless force)
@@ -394,7 +403,9 @@ func resolveGitHubBundleVersion(sourceLocation, requestedVersion string, allowPr
 		return ref.Tag, nil
 	}
 
+	fmt.Print(styles.Loading("Fetching available versions from GitHub..."))
 	releases, err := bundleListGitHubReleases(sourceLocation)
+	fmt.Print("\r")
 	if err != nil {
 		return "", err
 	}
@@ -446,9 +457,67 @@ func inspectGitHubBundleVersion(sourceLocation, requestedVersion string) (string
 	return "", fmt.Errorf("no releases found for %s", ref.Repo)
 }
 
+func checkExistingFiles(projectRoot, outputPath string, promptFiles []string) ([]string, error) {
+	var existing []string
+
+	if _, err := os.Stat(outputPath); err == nil {
+		existing = append(existing, outputPath)
+	}
+
+	provPath := bundle.ProvenancePath(projectRoot)
+	if _, err := os.Stat(provPath); err == nil {
+		existing = append(existing, provPath)
+	}
+
+	if len(promptFiles) > 0 {
+		promptsDir := filepath.Join(projectRoot, ".opencode", "prompts")
+		for _, pf := range promptFiles {
+			destPath := filepath.Join(promptsDir, filepath.Base(pf))
+			if _, err := os.Stat(destPath); err == nil {
+				existing = append(existing, destPath)
+			}
+		}
+	}
+
+	return existing, nil
+}
+
+func promptForOverrideConfirmation(files []string) (bool, error) {
+	fmt.Fprintln(bundlePromptOut)
+	fmt.Fprintln(bundlePromptOut, styles.Warning("The following files will be overwritten:"))
+	for _, f := range files {
+		fmt.Fprintf(bundlePromptOut, "  - %s\n", styles.Muted(f))
+	}
+	fmt.Fprintln(bundlePromptOut)
+	fmt.Fprint(bundlePromptOut, styles.YesNoPrompt("Do you want to overwrite", "n"))
+
+	reader := bufio.NewReader(bundlePromptIn)
+	selection, err := reader.ReadString('\n')
+	if err != nil {
+		if err == io.EOF {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to read confirmation: %w", err)
+	}
+
+	selection = strings.TrimSpace(strings.ToLower(selection))
+	if selection == "y" || selection == "yes" {
+		return true, nil
+	}
+	return false, nil
+}
+
 func promptForPresetSelection(manifest *bundle.Manifest) (string, error) {
 	if len(manifest.Presets) == 0 {
 		return "", fmt.Errorf("bundle has no presets to select")
+	}
+
+	defaultIdx := 0
+	for i, p := range manifest.Presets {
+		if p.Name == "default" {
+			defaultIdx = i
+			break
+		}
 	}
 
 	reader := bufio.NewReader(bundlePromptIn)
@@ -456,17 +525,31 @@ func promptForPresetSelection(manifest *bundle.Manifest) (string, error) {
 		fmt.Fprintln(bundlePromptOut)
 		fmt.Fprint(bundlePromptOut, styles.SectionHeader("Select Preset for "+manifest.BundleName))
 		for i, preset := range manifest.Presets {
-			if preset.Description != "" {
-				fmt.Fprintf(bundlePromptOut, "  %d) %s  %s\n",
-					i+1,
-					preset.Name,
-					styles.Muted("- "+preset.Description))
-				continue
+			assetIndicator := styles.AssetIndicator(len(preset.PromptFiles) > 0, len(preset.PromptFiles))
+			if i == defaultIdx {
+				if preset.Description != "" {
+					fmt.Fprintf(bundlePromptOut, "▸ %d) %s  %s  %s\n",
+						i+1,
+						preset.Name,
+						styles.Muted("- "+preset.Description),
+						assetIndicator)
+					continue
+				}
+				fmt.Fprintf(bundlePromptOut, "▸ %d) %s  %s\n", i+1, preset.Name, assetIndicator)
+			} else {
+				if preset.Description != "" {
+					fmt.Fprintf(bundlePromptOut, "  %d) %s  %s  %s\n",
+						i+1,
+						preset.Name,
+						styles.Muted("- "+preset.Description),
+						assetIndicator)
+					continue
+				}
+				fmt.Fprintf(bundlePromptOut, "  %d) %s  %s\n", i+1, preset.Name, assetIndicator)
 			}
-			fmt.Fprintf(bundlePromptOut, "  %d) %s\n", i+1, preset.Name)
 		}
 		fmt.Fprintln(bundlePromptOut)
-		fmt.Fprint(bundlePromptOut, styles.Prompt("Enter selection: "))
+		fmt.Fprintf(bundlePromptOut, "%s(%s)%s ", styles.Prompt("Enter selection (default: "), styles.Highlight(fmt.Sprint(defaultIdx+1)), styles.Prompt("): "))
 
 		selection, err := reader.ReadString('\n')
 		if err != nil {
@@ -477,6 +560,9 @@ func promptForPresetSelection(manifest *bundle.Manifest) (string, error) {
 		}
 
 		selection = strings.TrimSpace(selection)
+		if selection == "" {
+			return manifest.Presets[defaultIdx].Name, nil
+		}
 		for _, preset := range manifest.Presets {
 			if preset.Name == selection {
 				return preset.Name, nil
@@ -489,7 +575,7 @@ func promptForPresetSelection(manifest *bundle.Manifest) (string, error) {
 			}
 		}
 
-		fmt.Fprintln(bundlePromptOut, styles.Invalid("Please enter a preset number or exact name."))
+		fmt.Fprintln(bundlePromptOut, styles.Invalid("Please enter a preset number or exact name, or press Enter for default."))
 	}
 }
 
@@ -508,14 +594,24 @@ func promptForSourceSelection() (string, error) {
 		fmt.Fprintln(bundlePromptOut)
 		fmt.Fprintln(bundlePromptOut, styles.SectionHeader("Select Source"))
 		for i, src := range sources {
-			fmt.Fprintf(bundlePromptOut, "  %d) %s  %s  %s\n",
-				i+1,
-				src.ID,
-				styles.Muted("("+string(src.Type)+")"),
-				src.Name)
+			icon := styles.SourceTypeIcon(string(src.Type))
+			typeLabel := styles.SourceTypeLabel(string(src.Type))
+			if i == 0 {
+				fmt.Fprintf(bundlePromptOut, "▸ %d) %s  %s  %s\n",
+					i+1,
+					icon,
+					styles.Highlight(src.Name),
+					styles.Muted("("+typeLabel+")"))
+			} else {
+				fmt.Fprintf(bundlePromptOut, "  %d) %s  %s  %s\n",
+					i+1,
+					icon,
+					styles.Highlight(src.Name),
+					styles.Muted("("+typeLabel+")"))
+			}
 		}
 		fmt.Fprintln(bundlePromptOut)
-		fmt.Fprint(bundlePromptOut, styles.Prompt("Enter selection: "))
+		fmt.Fprint(bundlePromptOut, styles.Prompt("Enter selection (default: 1): "))
 
 		selection, err := reader.ReadString('\n')
 		if err != nil {
@@ -526,6 +622,10 @@ func promptForSourceSelection() (string, error) {
 		}
 
 		selection = strings.TrimSpace(selection)
+
+		if selection == "" {
+			return sources[0].ID, nil
+		}
 
 		// First check for exact name match
 		for _, src := range sources {
@@ -548,7 +648,7 @@ func promptForSourceSelection() (string, error) {
 			}
 		}
 
-		fmt.Fprintln(bundlePromptOut, styles.Invalid("Please enter a source number, ID, or name."))
+		fmt.Fprintln(bundlePromptOut, styles.Invalid("Please enter a source number, name, or press Enter for default."))
 	}
 }
 
@@ -557,17 +657,37 @@ func promptForGitHubReleaseSelection(sourceLocation string, releases []bundle.Gi
 		return "", fmt.Errorf("github-release source has no versions to select")
 	}
 
+	// GitHub API returns releases sorted by date (newest first), so index 0 is latest
+	// Prefer stable over prerelease
+	latestIdx := 0
+	for i, r := range releases {
+		if !r.Prerelease {
+			// First stable release is the latest stable since sorted by date
+			latestIdx = i
+			break
+		}
+	}
+
 	reader := bufio.NewReader(bundlePromptIn)
 	for {
-		fmt.Fprintf(bundlePromptOut, "Available versions for %s:\n", sourceLocation)
+		fmt.Fprintln(bundlePromptOut)
+		fmt.Fprint(bundlePromptOut, styles.SectionHeader("Select Version for "+sourceLocation))
 		for i, release := range releases {
 			label := release.TagName
 			if release.Prerelease {
-				label += " (prerelease)"
+				label += " " + styles.Muted("(prerelease)")
 			}
-			fmt.Fprintf(bundlePromptOut, "  %d) %s\n", i+1, label)
+			if i == latestIdx {
+				label += " " + styles.Muted("(recommended)")
+			}
+			if i == latestIdx {
+				fmt.Fprintf(bundlePromptOut, "▸ %d) %s\n", i+1, label)
+			} else {
+				fmt.Fprintf(bundlePromptOut, "  %d) %s\n", i+1, label)
+			}
 		}
-		fmt.Fprint(bundlePromptOut, styles.Prompt("Select a version: "))
+		fmt.Fprintln(bundlePromptOut)
+		fmt.Fprintf(bundlePromptOut, "%s(%s)%s ", styles.Prompt("Enter selection (default: "), styles.Highlight(fmt.Sprint(latestIdx+1)), styles.Prompt("): "))
 
 		selection, err := reader.ReadString('\n')
 		if err != nil {
@@ -578,6 +698,10 @@ func promptForGitHubReleaseSelection(sourceLocation string, releases []bundle.Gi
 		}
 
 		selection = strings.TrimSpace(selection)
+		if selection == "" {
+			return releases[latestIdx].TagName, nil
+		}
+
 		for _, release := range releases {
 			if release.TagName == selection {
 				return release.TagName, nil
@@ -590,7 +714,7 @@ func promptForGitHubReleaseSelection(sourceLocation string, releases []bundle.Gi
 			}
 		}
 
-		fmt.Fprintln(bundlePromptOut, styles.Invalid("Please enter a version number or exact tag."))
+		fmt.Fprintln(bundlePromptOut, styles.Invalid("Please enter a version number, exact tag, or press Enter for default."))
 	}
 }
 
